@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,77 +8,86 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { scale, verticalScale, moderateScale } from "react-native-size-matters";
-import ProductCard from "./Best_Selling_Card"; 
-import { getProducts } from "../../api/public"; 
+import BestSellingCard from "./Best_Selling_Card";
+import { getProducts } from "../../api/public";
+import { getCartApi } from "../../api/cart"; 
 import { useNavigation } from "@react-navigation/native";
-
-interface GalleryImage {
-  id: number;
-  guid: string;
-  file_name: string;
-  image_url: string;
-}
+import { RefreshCw } from "lucide-react-native";
 
 interface Product {
   id: number;
   guid: string;
   name: string;
   description: string;
-  price: number;
-  discount_price: number;
   final_price: number;
-  has_discount: boolean;
-  discount_percentage: number;
-  benefits: string;
-  suggested_use: string;
-  nutritional_information: string;
-  flavor: string;
-  image: string;
   image_url: string;
-  status: string;
-  is_featured: boolean;
-  category_id: string;
-  category?: any;
-  ratings: any[];
-  gallery_images: GalleryImage[];
-  average_rating: number;
-  ratings_count: number;
-  created_at: string;
-  updated_at: string;
 }
 
 const BestSelling: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [cartItems, setCartItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation<any>();
 
   useEffect(() => {
-    fetchProducts();
+    fetchInitialData();
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchInitialData = async () => {
+    setLoading(true);
     try {
-      const response = await getProducts({ page: 1, perPage: 6 });
-      setProducts(response.data); 
+      const [resProducts, resCart] = await Promise.all([
+        getProducts({ page: 1, perPage: 6 }),
+        getCartApi()
+      ]);
+      
+      setProducts(resProducts.data);
+      const guidsInCart = resCart.data.items.map((item: any) => item.product.guid);
+      setCartItems(guidsInCart);
     } catch (error) {
-      console.error("Products error:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Use this for "silent" updates when adding items to cart
+  const refreshCartOnly = async () => {
+    try {
+      const resCart = await getCartApi();
+      const guidsInCart = resCart.data.items.map((item: any) => item.product.guid);
+      setCartItems(guidsInCart);
+    } catch (error) {
+      console.error("Error refreshing cart silently:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchInitialData();
+    setRefreshing(false);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Best Selling Supplements</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("bestSelling")}>
-          <Text style={styles.seeAll}>See All</Text>
-        </TouchableOpacity>
+
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <TouchableOpacity onPress={handleRefresh}>
+            <RefreshCw size={18} color="#ADE406" />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => navigation.navigate("bestSelling")}>
+            <Text style={styles.seeAll}>See All</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="green" />
+          <ActivityIndicator size="large" color="#ADE406" />
         </View>
       ) : (
         <FlatList
@@ -87,12 +96,16 @@ const BestSelling: React.FC = () => {
           numColumns={2}
           columnWrapperStyle={styles.row}
           renderItem={({ item }) => (
-            <ProductCard
-             product={item} 
+            <BestSellingCard
+              product={item}
+              inCart={cartItems.includes(item.guid)}
+              refreshCart={refreshCartOnly} 
             />
           )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20 }}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
         />
       )}
     </View>

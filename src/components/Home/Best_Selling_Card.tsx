@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,52 +11,27 @@ import { scale, verticalScale, moderateScale } from "react-native-size-matters";
 import { useNavigation } from "@react-navigation/native";
 import { addSupplementToCart } from "../../api/cart";
 import { Check } from "lucide-react-native";
+import { showErrorToast, showSuccessToast } from '../../utils/toast';
 
-interface GalleryImage {
-  id: number;
-  guid: string;
-  file_name: string;
-  image_url: string;
-}
 
 interface Product {
   id: number;
   guid: string;
   name: string;
   description: string;
-  price: number;
-  discount_price: number;
   final_price: number;
-  has_discount: boolean;
-  discount_percentage: number;
-  benefits: string;
-  suggested_use: string;
-  nutritional_information: string;
-  flavor: string;
-  image: string;
   image_url: string;
-  status: string;
-  is_featured: boolean;
-  category_id: string;
-  category?: any;
-  ratings: any[];
-  gallery_images: GalleryImage[];
-  average_rating: number;
-  ratings_count: number;
-  created_at: string;
-  updated_at: string;
 }
 
-type BestSellingCardProps = {
+type Props = {
   product: Product;
+  inCart?: boolean;
+  refreshCart?: () => void;
 };
 
-
-const BestSellingCard: React.FC<BestSellingCardProps> = ({ product }) => {
+const BestSellingCard: React.FC<Props> = ({ product, inCart = false, refreshCart }) => {
   const navigation = useNavigation<any>();
-  console.log
-
-  const [added, setAdded] = useState(false);
+  const [added, setAdded] = useState(inCart);
   const [loading, setLoading] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -66,48 +41,39 @@ const BestSellingCard: React.FC<BestSellingCardProps> = ({ product }) => {
     navigation.navigate("supplementDetails", { product });
   };
 
-
   const handleAddToCart = async () => {
     if (added || loading) return;
 
     setLoading(true);
+    setAdded(true); 
 
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(scaleAnim, {
-          toValue: 0.8,
-          duration: 120,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 0.5,
-          duration: 120,
-          useNativeDriver: true,
-        }),
+        Animated.timing(scaleAnim, { toValue: 0.8, duration: 120, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0.5, duration: 120, useNativeDriver: true }),
       ]),
       Animated.parallel([
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
       ]),
     ]).start();
 
     try {
-      await addSupplementToCart("product", product.guid, 2);
-      setAdded(true);
-    } catch (error) {
+      await addSupplementToCart("product", product.guid, 1);
+      showSuccessToast(`${product.name} added to cart!`);
+      if (refreshCart) refreshCart(); 
+    } catch (error:any) {
+      setAdded(false);
+      showErrorToast(error?.message || "Failed to add item to cart");
       console.error("Add to cart failed:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setAdded(inCart);
+  }, [inCart]);
 
   return (
     <TouchableOpacity
@@ -115,24 +81,22 @@ const BestSellingCard: React.FC<BestSellingCardProps> = ({ product }) => {
       onPress={goToDetail}
       activeOpacity={0.85}
     >
-      <Image
-        source={{ uri: product.image_url }}
-        style={styles.image}
-        resizeMode="cover"
-      />
+      <Image source={{ uri: product.image_url }} style={styles.image} />
 
       <Text style={styles.title} numberOfLines={1}>
         {product.name}
       </Text>
 
-      <Text style={styles.description} numberOfLines={3}>
-        {product.description}
-      </Text>
+      <View style={styles.descriptionBox}>
+        <Text style={styles.description} numberOfLines={3}>
+          {product.description}
+        </Text>
+      </View>
 
       <View style={styles.priceRow}>
         <Text style={styles.price}>Rs. {product.final_price}</Text>
 
-        <TouchableOpacity onPress={handleAddToCart} activeOpacity={0.8}>
+        <TouchableOpacity onPress={handleAddToCart} activeOpacity={0.8} disabled={loading || added}>
           <Animated.View
             style={{
               transform: [{ scale: scaleAnim }],
@@ -140,16 +104,11 @@ const BestSellingCard: React.FC<BestSellingCardProps> = ({ product }) => {
             }}
           >
             {added ? (
-              <Check
-                size={moderateScale(22)}
-                color="#ADE406"
-                strokeWidth={3}
-              />
+              <Check size={22} color="#ADE406" strokeWidth={3} />
             ) : (
               <Image
                 source={require("../../assets/images/green_cart.png")}
                 style={styles.cartIcon}
-                resizeMode="contain"
               />
             )}
           </Animated.View>
@@ -161,16 +120,18 @@ const BestSellingCard: React.FC<BestSellingCardProps> = ({ product }) => {
 
 export default BestSellingCard;
 
-
 const styles = StyleSheet.create({
   card: {
     borderRadius: moderateScale(12),
     width: "48%",
     marginBottom: verticalScale(12),
+    backgroundColor: "#1C1C1C",
+    padding: moderateScale(8),
+    minHeight: verticalScale(230),
   },
   image: {
     width: "100%",
-    height: verticalScale(140),
+    height: verticalScale(120),
     borderRadius: moderateScale(10),
     marginBottom: verticalScale(6),
   },
@@ -179,16 +140,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "white",
   },
+  descriptionBox: {
+    minHeight: verticalScale(40),
+    marginVertical: verticalScale(4),
+  },
   description: {
     fontSize: moderateScale(12),
-    color: "#aaa7a7ff",
-    marginVertical: verticalScale(4),
+    color: "#aaa",
   },
   priceRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginTop: verticalScale(2),
+    alignItems: "center",
+    marginTop: verticalScale(4),
   },
   price: {
     fontSize: moderateScale(14),
@@ -196,7 +160,7 @@ const styles = StyleSheet.create({
     color: "#ADE406",
   },
   cartIcon: {
-    width: moderateScale(22),
-    height: moderateScale(22),
+    width: 22,
+    height: 22,
   },
 });

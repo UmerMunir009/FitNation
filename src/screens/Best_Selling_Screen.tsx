@@ -6,67 +6,59 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { verticalScale, moderateScale } from 'react-native-size-matters';
-import ProductCard from '../components/Home/Best_Selling_Card';
+import { verticalScale, moderateScale, scale } from 'react-native-size-matters';
+import ProductCard from '../components/Home/Best_Selling_Card'; 
 import { getProducts } from '../api/public';
+import { getCartApi } from '../api/cart';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft } from 'lucide-react-native';
 
-interface GalleryImage {
-  id: number;
-  guid: string;
-  file_name: string;
-  image_url: string;
-}
-
-interface Product {
-  id: number;
-  guid: string;
-  name: string;
-  description: string;
-  price: number;
-  discount_price: number;
-  final_price: number;
-  has_discount: boolean;
-  discount_percentage: number;
-  benefits: string;
-  suggested_use: string;
-  nutritional_information: string;
-  flavor: string;
-  image: string;
-  image_url: string;
-  status: string;
-  is_featured: boolean;
-  category_id: string;
-  category?: any;
-  ratings: any[];
-  gallery_images: GalleryImage[];
-  average_rating: number;
-  ratings_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
 const BestSellingSupplementsScreen: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [cartItems, setCartItems] = useState<string[]>([]); 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation<any>();
 
   useEffect(() => {
-    fetchProducts();
+    fetchAllData();
   }, []);
 
-  const fetchProducts = async () => {
-    setLoading(true);
+  const fetchAllData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
-      const response = await getProducts({ page: 1, perPage: 300 });
-      setProducts(response.data); // store all info
+      const [resProducts, resCart] = await Promise.all([
+        getProducts({ page: 1, perPage: 300 }),
+        getCartApi()
+      ]);
+
+      setProducts(resProducts.data);
+      
+      const guidsInCart = resCart.data.items.map((item: any) => item.product.guid);
+      setCartItems(guidsInCart);
     } catch (error) {
-      console.error('Products error:', error);
+      console.error('Data fetch error:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const refreshCartOnly = async () => {
+    try {
+      const resCart = await getCartApi();
+      const guidsInCart = resCart.data.items.map((item: any) => item.product.guid);
+      setCartItems(guidsInCart);
+    } catch (error) {
+      console.error("Cart sync error:", error);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchAllData(false);
   };
 
   return (
@@ -81,9 +73,9 @@ const BestSellingSupplementsScreen: React.FC = () => {
         <Text style={styles.header}>All Supplements</Text>
       </View>
 
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="green" />
+          <ActivityIndicator size="large" color="#ADE406" />
         </View>
       ) : (
         <FlatList
@@ -91,10 +83,18 @@ const BestSellingSupplementsScreen: React.FC = () => {
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
           columnWrapperStyle={styles.row}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={handleRefresh} 
+              tintColor="#ADE406" 
+            />
+          }
           renderItem={({ item }) => (
             <ProductCard
-            
               product={item} 
+              inCart={cartItems.includes(item.guid)} 
+              refreshCart={refreshCartOnly}          
             />
           )}
           showsVerticalScrollIndicator={false}
@@ -117,27 +117,23 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: verticalScale(10),
+    marginBottom: verticalScale(15),
   },
   backBtn: {
     marginRight: moderateScale(10),
   },
   header: {
     color: '#FFFFFF',
-    fontSize: moderateScale(18),
-    fontWeight: '700',
-    textAlign: 'left',
+    fontSize: moderateScale(20),
+    fontWeight: '800',
   },
   row: {
     justifyContent: 'space-between',
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(8),
   },
   loadingBox: {
-    height: 500,
+    flex: 0.8,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'black',
-    marginBottom: 16,
-    borderRadius: 8,
   },
 });

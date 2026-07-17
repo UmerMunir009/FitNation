@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
-import { ChevronLeft, Eye, EyeOff, Loader2 } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -50,6 +50,7 @@ const SignUpScreen = () => {
 
     if (Object.keys(newErrors).length === 0) {
       await register(name, email, password, confirmPassword);
+      navigation.replace('Login');
     }
   };
 

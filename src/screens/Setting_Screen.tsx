@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
+import { screenTopPadding } from '../theme/layout';
 
 
 const SettingsScreen = () => {
@@ -41,7 +42,7 @@ const SettingsScreen = () => {
       id: 4,
       label: 'My Membership',
       icon: require('../assets/images/membership_icon.png'),
-      route: 'MembershipScreen',
+      route: 'membership',
     },
     {
       id: 5,
@@ -59,7 +60,13 @@ const SettingsScreen = () => {
       id: 7,
       label: 'Workout Plans',
       icon: require('../assets/images/workout_icon.png'),
-      route: 'WorkoutPlansScreen',
+      route: 'workoutProgress',
+    },
+    {
+      id: 8,
+      label: 'Chat',
+      icon: require('../assets/images/message_box.png'),
+      route: 'chat',
     },
   ];
 
@@ -121,7 +128,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F0F0F',
     paddingHorizontal: moderateScale(14),
-    paddingTop: verticalScale(45),
+    paddingTop: screenTopPadding,
   },
   header: {
     flexDirection: 'row',

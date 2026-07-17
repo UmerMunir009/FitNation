@@ -1,135 +1,53 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
+  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, Calendar } from 'lucide-react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { screenTopPadding } from '../theme/layout';
+import { getTodayMealsApi, getUserMealPlansApi } from '../api/user';
+import { showErrorToast } from '../utils/toast';
+import RemoteImage from '../components/RemoteImage';
 
-const meals = [
-  {
-    id: '1',
-    name: 'Protein Pancakes',
-    description:
-      'Fluffy pancakes with protein powder and fresh berries, perfect for a high-protein breakfast.',
-    image: require('../assets/images/meal_1.jpg'),
-    time: '7:00 AM',
-    mealType: 'Breakfast',
-    prep_time: '10 mins',
-    cook_time: '15 mins',
-    health_score: 85,
-    carbs: 35,
-    fats: 8,
-    protein: 25,
-    calories:3100,
-    ingredients: ['Oats', 'Protein powder', 'Eggs', 'Berries', 'Milk', 'Honey'],
-    steps: [
-      {
-        step_name: 'Mix Ingredients',
-        description:
-          'Combine oats, protein powder, eggs, milk, and honey in a bowl until smooth.',
-      },
-      {
-        step_name: 'Heat Pan',
-        description: 'Preheat a non-stick pan over medium heat.',
-      },
-      {
-        step_name: 'Cook Pancakes',
-        description:
-          'Pour batter into the pan, cook each side for 2-3 minutes until golden brown.',
-      },
-      {
-        step_name: 'Serve',
-        description: 'Top pancakes with fresh berries and enjoy.',
-      },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Grilled Chicken Salad',
-    description:
-      'Fresh greens with grilled chicken, cherry tomatoes, and olive oil dressing.',
-    image: require('../assets/images/meal_2.jpg'),
-    time: '12:30 PM',
-    mealType: 'Lunch',
-    prep_time: '15 mins',
-    cook_time: '20 mins',
-    health_score: 90,
-    carbs: 12,
-    fats: 18,
-    protein: 45,
-    calories:2500,
-    ingredients: ['Chicken breast', 'Lettuce', 'Tomatoes', 'Cucumber', 'Olive oil', 'Lemon juice'],
-    steps: [
-      {
-        step_name: 'Prepare Chicken',
-        description: 'Season chicken breast with salt, pepper, and herbs.',
-      },
-      {
-        step_name: 'Grill Chicken',
-        description: 'Grill chicken for 6-8 minutes on each side until fully cooked.',
-      },
-      {
-        step_name: 'Prepare Salad',
-        description:
-          'Chop lettuce, tomatoes, cucumber and mix with olive oil and lemon juice.',
-      },
-      {
-        step_name: 'Assemble',
-        description: 'Slice grilled chicken and place on top of salad. Serve.',
-      },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Salmon with Vegetables',
-    description:
-      'Baked salmon fillet with roasted broccoli and sweet potato, a healthy dinner choice.',
-    image: require('../assets/images/meal_3.jpg'),
-    time: '6:00 PM',
-    mealType: 'Dinner',
-    prep_time: '10 mins',
-    cook_time: '25 mins',
-    health_score: 92,
-    carbs: 25,
-    fats: 20,
-    protein: 40,
-    calories:4546,
-    ingredients: ['Salmon fillet', 'Broccoli', 'Sweet potato', 'Olive oil', 'Garlic', 'Lemon'],
-    steps: [
-      {
-        step_name: 'Preheat Oven',
-        description: 'Preheat oven to 200°C (390°F).',
-      },
-      {
-        step_name: 'Prepare Vegetables',
-        description: 'Chop broccoli and sweet potato, toss with olive oil and garlic.',
-      },
-      {
-        step_name: 'Bake',
-        description:
-          'Place salmon and vegetables on a baking tray and bake for 20-25 minutes until salmon is cooked through.',
-      },
-      {
-        step_name: 'Serve',
-        description: 'Squeeze fresh lemon over salmon and vegetables. Serve hot.',
-      },
-    ],
-  },
-];
+const unwrapList = (payload: any) => {
+  const data = payload?.data?.data || payload?.data?.meals || payload?.data || payload;
+  return Array.isArray(data) ? data : [];
+};
 
+const normalizeMeals = (payload: any) =>
+  unwrapList(payload).map((meal: any) => ({
+    ...meal,
+    id: meal.id || meal.guid,
+    name: meal.name || meal.title || meal.meal?.name,
+    description: meal.description || meal.meal?.description || '',
+    image_url: meal.image_url || meal.meal?.image_url,
+    time: meal.time || meal.scheduled_time || meal.meal_time || '',
+    mealType: meal.meal_type || meal.type_label || meal.type || 'Meal',
+    prep_time: meal.prep_time || meal.preparation_time_formatted,
+    cook_time: meal.cook_time || meal.cooking_time,
+    health_score: meal.health_score,
+    carbs: Number(meal.carbs || meal.nutrition_summary?.carbs || 0),
+    fats: Number(meal.fats || meal.nutrition_summary?.fat || 0),
+    protein: Number(meal.protein || meal.nutrition_summary?.protein || 0),
+    calories: Number(meal.calories || meal.nutrition_summary?.calories || 0),
+    ingredients: meal.ingredients || [],
+    steps: meal.steps || meal.directions || [],
+  }));
 
 const MealPlanScreen = () => {
   const navigation = useNavigation<any>();
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
+  const [meals, setMeals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const formattedDate = date.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -137,17 +55,35 @@ const MealPlanScreen = () => {
     month: 'short',
   });
 
+  const fetchMeals = async () => {
+    setLoading(true);
+    try {
+      const todayResponse = await getTodayMealsApi();
+      const todayMeals = normalizeMeals(todayResponse);
+      if (todayMeals.length) {
+        setMeals(todayMeals);
+      } else {
+        const planResponse = await getUserMealPlansApi();
+        setMeals(normalizeMeals(planResponse));
+      }
+    } catch (error) {
+      showErrorToast('Could not load meal plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMeals();
+  }, []);
+
   const onChange = (_event: any, selectedDate?: Date) => {
     setShowPicker(Platform.OS === 'ios');
     if (selectedDate) setDate(selectedDate);
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: verticalScale(50) }}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <ChevronLeft size={24} color="#fff" />
@@ -158,7 +94,7 @@ const MealPlanScreen = () => {
 
       <View style={styles.dateRow}>
         <Text style={styles.dateText}>{formattedDate}</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowPicker(true)}>
           <Calendar size={22} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -173,46 +109,52 @@ const MealPlanScreen = () => {
         />
       )}
 
-      {meals.map(meal => (
-        <View key={meal.id} style={styles.card}>
-          <View
-            style={[
-              styles.mealTypeButton,
-              {
-                backgroundColor:
-                  meal.mealType === 'Breakfast'
-                    ? '#ADE406'
-                    : meal.mealType === 'Lunch'
-                    ? '#E4D106'
-                    : meal.mealType === 'Dinner'
-                    ? '#E99F9D'
-                    : '#ADE406',
-              },
-            ]}
-          >
-            <Text style={styles.mealTypeButtonText}>{meal.mealType}</Text>
-          </View>
-
-          <View style={styles.cardContent}>
-            <Image source={meal.image} style={styles.mealImage} />
-            <View style={styles.mealInfo}>
-              <Text style={styles.mealName}>{meal.name}</Text>
-              <Text style={styles.mealTime}>{meal.time}</Text>
-              <Text numberOfLines={3} style={styles.mealDescription}>{meal.description}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.viewButton}
-            onPress={() =>
-              navigation.navigate('mealPlanDetails', { id: meal.id, meals })
-            }
-          >
-            <Text style={styles.viewButtonText}>View</Text>
-          </TouchableOpacity>
+      {loading ? (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#ADE406" />
         </View>
-      ))}
-    </ScrollView>
+      ) : (
+        <FlatList
+          data={meals}
+          keyExtractor={item => String(item.id)}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No meal plan found.</Text>
+          }
+          renderItem={({ item: meal }) => (
+            <View style={styles.card}>
+              <View style={styles.mealTypeButton}>
+                <Text style={styles.mealTypeButtonText}>{meal.mealType}</Text>
+              </View>
+
+              <View style={styles.cardContent}>
+                <RemoteImage
+                  sourceUri={meal.image_url}
+                  style={styles.mealImage}
+                />
+                <View style={styles.mealInfo}>
+                  <Text style={styles.mealName}>{meal.name}</Text>
+                  <Text style={styles.mealTime}>{meal.time}</Text>
+                  <Text numberOfLines={3} style={styles.mealDescription}>
+                    {meal.description}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.viewButton}
+                onPress={() =>
+                  navigation.navigate('mealPlanDetails', { id: meal.id, meals })
+                }
+              >
+                <Text style={styles.viewButtonText}>View</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          contentContainerStyle={{ paddingBottom: verticalScale(50) }}
+        />
+      )}
+    </View>
   );
 };
 
@@ -223,12 +165,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     paddingHorizontal: moderateScale(16),
+    paddingTop: screenTopPadding,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: verticalScale(30),
     marginBottom: verticalScale(10),
   },
   headerTitle: {
@@ -251,6 +193,16 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#484848ff',
     marginBottom: verticalScale(12),
+  },
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#999',
+    textAlign: 'center',
+    marginTop: verticalScale(80),
   },
   card: {
     borderWidth: 1,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { scale, verticalScale, moderateScale } from "react-native-size-matters";
 import BestSellingCard from "./Best_Selling_Card";
-import { getProducts } from "../../api/public";
+import { getSupplements } from "../../api/public";
 import { getCartApi } from "../../api/cart"; 
 import { useNavigation } from "@react-navigation/native";
 import { RefreshCw } from "lucide-react-native";
@@ -22,6 +22,12 @@ interface Product {
   final_price: number;
   image_url: string;
 }
+
+const getCartProductGuids = (items: any[] = []) =>
+  items
+    .map(item => item?.product?.guid || item?.product_guid || item?.product_id)
+    .filter(Boolean)
+    .map(String);
 
 const BestSelling: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -37,13 +43,15 @@ const BestSelling: React.FC = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [resProducts, resCart] = await Promise.all([
-        getProducts({ page: 1, perPage: 6 }),
-        getCartApi()
-      ]);
+      const resProducts = await getSupplements({
+        page: 1,
+        perPage: 6,
+        featured: true,
+      });
+      const resCart = await getCartApi();
       
-      setProducts(resProducts.data);
-      const guidsInCart = resCart.data.items.map((item: any) => item.product.guid);
+      setProducts(resProducts.data?.data || resProducts.data || []);
+      const guidsInCart = getCartProductGuids(resCart.data?.items);
       setCartItems(guidsInCart);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -56,7 +64,7 @@ const BestSelling: React.FC = () => {
   const refreshCartOnly = async () => {
     try {
       const resCart = await getCartApi();
-      const guidsInCart = resCart.data.items.map((item: any) => item.product.guid);
+      const guidsInCart = getCartProductGuids(resCart.data?.items);
       setCartItems(guidsInCart);
     } catch (error) {
       console.error("Error refreshing cart silently:", error);
@@ -98,7 +106,7 @@ const BestSelling: React.FC = () => {
           renderItem={({ item }) => (
             <BestSellingCard
               product={item}
-              inCart={cartItems.includes(item.guid)}
+              inCart={cartItems.includes(String(item.guid || item.id))}
               refreshCart={refreshCartOnly} 
             />
           )}

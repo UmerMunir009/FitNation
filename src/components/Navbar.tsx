@@ -3,6 +3,7 @@ import { View, TouchableOpacity, Image, StyleSheet } from "react-native";
 import { scale, verticalScale, moderateScale } from "react-native-size-matters";
 import { useNavigation } from "@react-navigation/native";
 import Sidebar from "./Sidebar";
+import { compactScreenTopPadding } from "../theme/layout";
 
 const NavBar = () => {
   const navigation = useNavigation<any>();
@@ -62,6 +63,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: scale(20),
     paddingVertical: verticalScale(8),
+    paddingTop: compactScreenTopPadding,
   },
   logoImage: {
     width: scale(120),

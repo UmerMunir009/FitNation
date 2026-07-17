@@ -1,6 +1,5 @@
 import React, { useContext, useState } from 'react';
 import {
-  View,
   Text,
   StyleSheet,
   TextInput,
@@ -10,7 +9,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
-import { ChevronLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthContext } from '../../context/AuthContext';

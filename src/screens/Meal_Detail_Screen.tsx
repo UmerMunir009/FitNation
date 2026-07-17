@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { moderateScale, verticalScale } from 'react-native-size-matters';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ArrowLeft } from 'lucide-react-native';
+import { getMealDetail } from '../api/public';
+import { screenTopPadding } from '../theme/layout';
+import RemoteImage from '../components/RemoteImage';
 
 type GalleryImage = {
   id: number;
@@ -32,6 +35,7 @@ type NutritionSummary = {
 };
 
 type Meal = {
+  guid?: string;
   name: string;
   description: string;
   current_price: number;
@@ -52,8 +56,35 @@ const MealDetails: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { meal } = (route.params as { meal: Meal }) || {};
+  const [detail, setDetail] = useState<Meal | undefined>(meal);
+  const [loading, setLoading] = useState(false);
 
-  if (!meal) {
+  useEffect(() => {
+    const fetchDetail = async () => {
+      const id = meal?.guid || (meal as any)?.id;
+      if (!id) return;
+      setLoading(true);
+      try {
+        const response = await getMealDetail(id);
+        setDetail(response?.data || response);
+      } catch (error) {
+        setDetail(meal);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDetail();
+  }, [meal]);
+
+  if (loading && !detail) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color="#ADE406" />
+      </View>
+    );
+  }
+
+  if (!detail) {
     return (
       <View
         style={{
@@ -77,27 +108,25 @@ const MealDetails: React.FC = () => {
         >
           <ArrowLeft size={24} color="white" />
         </TouchableOpacity>
-        <Text style={styles.header}>{meal.name}</Text>
+        <Text style={styles.header}>{detail.name}</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {meal.image_url && (
-          <Image
-            source={{ uri: meal.image_url }}
-            style={styles.featuredImage}
-          />
-        )}
+        <RemoteImage
+          sourceUri={detail.image_url}
+          style={styles.featuredImage}
+        />
 
     
         <View style={styles.badgesRow}>
-          {meal.type_label && (
+          {detail.type_label && (
             <View style={[styles.badge, { backgroundColor: '#28a745' }]}>
-              <Text style={styles.badgeText}>{meal.type_label}</Text>
+              <Text style={styles.badgeText}>{detail.type_label}</Text>
             </View>
           )}
 
-          {(meal.badges?.length ?? 0) > 0 &&
-            meal.badges!.map((b, idx) => (
+          {(detail.badges?.length ?? 0) > 0 &&
+            detail.badges!.map((b, idx) => (
               <View
                 key={idx}
                 style={[
@@ -111,83 +140,83 @@ const MealDetails: React.FC = () => {
         </View>
 
         <View style={styles.priceRow}>
-          <Text style={styles.price}>Rs. {meal.current_price}</Text>
-          {meal.has_discount && (
-            <Text style={styles.salePrice}>Rs. {meal.sale_price}</Text>
+          <Text style={styles.price}>Rs. {detail.current_price}</Text>
+          {detail.has_discount && (
+            <Text style={styles.salePrice}>Rs. {detail.sale_price}</Text>
           )}
         </View>
 
-        {meal.description && (
+        {detail.description && (
           <>
             <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.description}>{meal.description}</Text>
+            <Text style={styles.description}>{detail.description}</Text>
           </>
         )}
 
-        {meal.nutrition_summary && (
+        {detail.nutrition_summary && (
           <>
             <Text style={styles.sectionTitle}>Nutrition</Text>
             <View style={styles.nutritionRow}>
-              {meal.nutrition_summary.calories && (
+              {detail.nutrition_summary.calories && (
                 <Text style={styles.nutritionItem}>
-                  Calories: {meal.nutrition_summary.calories}
+                  Calories: {detail.nutrition_summary.calories}
                 </Text>
               )}
-              {meal.nutrition_summary.protein && (
+              {detail.nutrition_summary.protein && (
                 <Text style={styles.nutritionItem}>
-                  Protein: {meal.nutrition_summary.protein}
+                  Protein: {detail.nutrition_summary.protein}
                 </Text>
               )}
-              {meal.nutrition_summary.carbs && (
+              {detail.nutrition_summary.carbs && (
                 <Text style={styles.nutritionItem}>
-                  Carbs: {meal.nutrition_summary.carbs}
+                  Carbs: {detail.nutrition_summary.carbs}
                 </Text>
               )}
-              {meal.nutrition_summary.fat && (
+              {detail.nutrition_summary.fat && (
                 <Text style={styles.nutritionItem}>
-                  Fat: {meal.nutrition_summary.fat}
+                  Fat: {detail.nutrition_summary.fat}
                 </Text>
               )}
             </View>
           </>
         )}
 
-        {(meal.serving_size || meal.preparation_time_formatted) && (
+        {(detail.serving_size || detail.preparation_time_formatted) && (
           <>
             <Text style={styles.sectionTitle}>Details</Text>
-            {meal.serving_size && (
+            {detail.serving_size && (
               <Text style={styles.detailText}>
-                Serving Size: {meal.serving_size}
+                Serving Size: {detail.serving_size}
               </Text>
             )}
-            {meal.preparation_time_formatted && (
+            {detail.preparation_time_formatted && (
               <Text style={styles.detailText}>
-                Preparation Time: {meal.preparation_time_formatted}
+                Preparation Time: {detail.preparation_time_formatted}
               </Text>
             )}
           </>
         )}
 
-        {typeof meal.in_stock === 'boolean' && (
+        {typeof detail.in_stock === 'boolean' && (
           <>
             <Text style={styles.sectionTitle}>Availability</Text>
             <Text style={styles.detailText}>
-              {meal.in_stock ? 'In Stock' : 'Out of Stock'}
+              {detail.in_stock ? 'In Stock' : 'Out of Stock'}
             </Text>
           </>
         )}
 
-        {(meal.gallery_images?.length ?? 0) > 0 && (
+        {(detail.gallery_images?.length ?? 0) > 0 && (
           <>
             <Text style={styles.sectionTitle}>Gallery</Text>
             <FlatList
-              data={meal.gallery_images}
+              data={detail.gallery_images}
               keyExtractor={item => item.id.toString()}
               horizontal
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
-                <Image
-                  source={{ uri: item.image_url }}
+                <RemoteImage
+                  sourceUri={item.image_url}
                   style={styles.galleryImage}
                 />
               )}
@@ -221,7 +250,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     paddingHorizontal: moderateScale(12),
-    paddingTop: verticalScale(30),
+    paddingTop: screenTopPadding,
+  },
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
   },
   headerRow: {
     flexDirection: 'row',

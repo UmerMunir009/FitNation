@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {NavigationContainer} from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext'; 
@@ -17,6 +17,9 @@ import CartScreen from '../screens/Cart_Screen'
 import OrderScreen from '../screens/Orders_Screen'
 import EditProfileScreen from '../screens/EditProfile_Screen'
 import SubscriptionScreen from '../screens/Subscription_Screen'
+import MembershipScreen from '../screens/Membership_Screen'
+import WorkoutProgressScreen from '../screens/WorkoutProgress_Screen'
+import ChatScreen from '../screens/Chat_Screen'
 import UpdatePaymentScreen from '../screens/UpdatePayment_Screen'
 import MealPlanScreen from '../screens/MealPlan_Screen'
 import MealPlanDetailsScreen from '../screens/MealPlan_Details_Screen'
@@ -53,6 +56,9 @@ export default function AppNavigator() {
             <Stack.Screen name="myOrders" component={OrderScreen} />
             <Stack.Screen name="editProfile" component={EditProfileScreen} />
             <Stack.Screen name="subscriptions" component={SubscriptionScreen} />
+            <Stack.Screen name="membership" component={MembershipScreen} />
+            <Stack.Screen name="workoutProgress" component={WorkoutProgressScreen} />
+            <Stack.Screen name="chat" component={ChatScreen} />
             <Stack.Screen name="updatePayment" component={UpdatePaymentScreen} />
             <Stack.Screen name="mealPlans" component={MealPlanScreen} />
             <Stack.Screen name="mealPlanDetails" component={MealPlanDetailsScreen} />

@@ -11,6 +11,8 @@ import Svg, { Circle } from 'react-native-svg';
 import { ChevronLeft } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
+import { screenTopPadding } from '../theme/layout';
+import RemoteImage from '../components/RemoteImage';
 
 const MealPlanDetailScreen = () => {
   const navigation = useNavigation<any>();
@@ -18,6 +20,17 @@ const MealPlanDetailScreen = () => {
   const { id, meals } = route.params;
 
   const meal = meals.find((m: any) => m.id === id);
+  const ingredients = Array.isArray(meal.ingredients)
+    ? meal.ingredients
+    : String(meal.ingredients || '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+  const steps = Array.isArray(meal.steps)
+    ? meal.steps
+    : Array.isArray(meal.directions)
+    ? meal.directions
+    : [];
 
   const total = meal.protein * 4 + meal.carbs * 4 + meal.fats * 9;
   const p = ((meal.protein * 4) / total) * 100;
@@ -37,7 +50,10 @@ const MealPlanDetailScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <Image source={meal.image} style={styles.mealImage} />
+      <RemoteImage
+        sourceUri={meal.image_url}
+        style={styles.mealImage}
+      />
       <View
         style={[
           styles.mealTypeButton,
@@ -113,7 +129,7 @@ const MealPlanDetailScreen = () => {
         INGREDIENTS
       </Text>
       <View style={styles.ingredientsContainer}>
-        {meal.ingredients.map((ing: string, index: number) => (
+        {ingredients.map((ing: string, index: number) => (
           <Text key={index} style={styles.ingredient}>
             {ing}
           </Text>
@@ -169,14 +185,18 @@ const MealPlanDetailScreen = () => {
         Directions
       </Text>
       <View style={styles.stepsContainer}>
-        {meal.steps.map((step: any, index: number) => (
+        {steps.map((step: any, index: number) => (
           <View key={index} style={styles.stepCard}>
             <View style={styles.stepNumberContainer}>
               <Text style={styles.stepNumber}>{index + 1}</Text>
             </View>
             <View style={styles.stepContent}>
-              <Text style={styles.stepName}>{step.step_name}</Text>
-              <Text style={styles.stepDescription}>{step.description}</Text>
+              <Text style={styles.stepName}>
+                {step.step_name || step.title || `Step ${index + 1}`}
+              </Text>
+              <Text style={styles.stepDescription}>
+                {step.description || String(step)}
+              </Text>
             </View>
           </View>
         ))}
@@ -192,7 +212,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     padding: moderateScale(16),
-    paddingTop: verticalScale(30),
+    paddingTop: screenTopPadding,
   },
   header: {
     flexDirection: 'row',

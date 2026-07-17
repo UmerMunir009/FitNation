@@ -1,79 +1,96 @@
 import api from './axiosInstance';
 
-export const loginApi = async (email, password) => {
+const toFormData = data => {
   const formData = new FormData();
-  formData.append('email', email);
-  formData.append('password', password);
-
-  const response = await api.post('/api/v1/auth/login', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      formData.append(key, value);
+    }
   });
-  console.log(response)
+  return formData;
+};
+
+const multipartConfig = {
+  headers: {
+    'Content-Type': 'multipart/form-data',
+  },
+};
+
+export const loginApi = async (email, password) => {
+  const response = await api.post('/api/v1/auth/login', { email, password });
 
   return response.data;
 };
 
 export const registerApi = async (name, email, password, confirmPassword) => {
-  const formData = new FormData();
-  formData.append('name', name);
-  formData.append('email', email);
-  formData.append('password', password);
-  formData.append('password_confirmation', confirmPassword);
-  formData.append('terms_accepted', 1);
-
-  const response = await api.post('/api/v1/auth/register', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  const response = await api.post('/api/v1/auth/register', {
+    name,
+    email,
+    password,
+    password_confirmation: confirmPassword,
+    terms_accepted: true,
   });
 
   return response.data;
 };
 
 export const forgotPasswordApi = async email => {
-  const formData = new FormData();
-  formData.append('email', email);
-
-  const response = await api.post('/api/v1/auth/forgot-password', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  const response = await api.post('/api/v1/auth/forgot-password', { email });
 
   return response.data;
 };
 
-export const verifyOTPApi = async (email,otp) => {
-  const formData = new FormData();
-  formData.append('email', email);
-  formData.append('otp', otp);
-
-  const response = await api.post('/api/v1/auth/verify-otp', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+export const verifyOTPApi = async (email, otp) => {
+  const response = await api.post('/api/v1/auth/verify-otp', { email, otp });
   return response.data;
 };
 
-export const resetPasswordApi = async (email,otp,password,newPassword) => {
-  const formData = new FormData();
-  formData.append('email', email);
-  formData.append('otp', otp);
-  formData.append('password', password);
-  formData.append('password_confirmation', newPassword);
+export const resendOTPApi = async email => {
+  const response = await api.post('/api/v1/auth/resend-otp', { email });
+  return response.data;
+};
 
-  const response = await api.post('/api/v1/auth/reset-password', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+export const resetPasswordApi = async (email, otp, password, newPassword) => {
+  const response = await api.post('/api/v1/auth/reset-password', {
+    email,
+    otp,
+    password,
+    password_confirmation: newPassword,
   });
   return response.data;
 };
 
 export const getProfileApi = async () => {
-  const response = await api.get('/profile');
+  const response = await api.get('/api/v1/auth/profile');
+  return response.data;
+};
+
+export const updateProfileApi = async profile => {
+  const response = await api.post(
+    '/api/v1/auth/profile/update',
+    toFormData({
+      ...profile,
+      is_profile: profile?.is_profile ?? 1,
+    }),
+    multipartConfig,
+  );
+  return response.data;
+};
+
+export const changePasswordApi = async (
+  currentPassword,
+  newPassword,
+  confirmPassword,
+) => {
+  const response = await api.post('/api/v1/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+    new_password_confirmation: confirmPassword,
+  });
+  return response.data;
+};
+
+export const logoutApi = async () => {
+  const response = await api.post('/api/v1/auth/logout');
   return response.data;
 };

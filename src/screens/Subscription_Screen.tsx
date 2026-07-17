@@ -1,72 +1,107 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { ChevronLeft, Check } from 'lucide-react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import { useNavigation } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
+import { screenTopPadding } from '../theme/layout';
+import { getFitnessPrograms } from '../api/public';
+import {
+  cancelPlanSubscriptionApi,
+  getUserSubscriptionsApi,
+  subscribeToPlanApi,
+} from '../api/user';
+import { showErrorToast, showSuccessToast } from '../utils/toast';
+
+const unwrapList = (payload: any) => {
+  const data = payload?.data?.data || payload?.data || payload;
+  return Array.isArray(data) ? data : [];
+};
 
 const SubscriptionScreen = () => {
   const navigation = useNavigation<any>();
-  const [isMonthly, setIsMonthly] = useState(true);
+  const { user } = useContext(AuthContext);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState<string | number | null>(null);
 
-  const plans = [
-    {
-      name: 'Starter',
-      monthlyPrice: 19,
-      yearlyPrice: 190,
-      description:
-        'Perfect for beginners. Get started with personalized nutrition and fitness guidance to track your progress.',
-      features: [
-        'Access to all exercise videos',
-        'Progress tracking',
-        'Support live community',
-        'Customized workout plans',
-        'Access to advanced programs',
-        'Body composition analysis',
-      ],
-      isPopular: false,
-    },
-    {
-      name: 'Professional',
-      monthlyPrice: 54,
-      yearlyPrice: 540,
-      description:
-        'Experience a fully tailored fitness experience with our expert plan. You get one-on-one coaching with a dedicated trainer.',
-      features: [
-        'Access to all exercise videos',
-        'Progress tracking',
-        'Support live community',
-        'Customized workout plans',
-        'Weekly trainer check-ins',
-        'Exclusive meal prep trainings',
-      ],
-      isPopular: false,
-    },
-    {
-      name: 'Premium',
-      monthlyPrice: 89,
-      yearlyPrice: 890,
-      description:
-        'Start your fitness journey with our beginner plan. Work one-on-one with our expert trainers and get essential nutrition guidance.',
-      features: [
-        'Access to all exercise videos',
-        'Progress tracking',
-        'Support live community',
-        'Personalized workout plans',
-        'Weekly trainer check-ins',
-        'Exclusive meal prep trainings',
-      ],
-      isPopular: true,
-    },
-  ];
+  const userId = user?.id || user?.user?.id || user?.guid;
 
-  const currentPrice = (plan: (typeof plans)[0]) =>
-    isMonthly ? plan.monthlyPrice : plan.yearlyPrice;
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [plansResponse, subscriptionsResponse] = await Promise.all([
+        getFitnessPrograms({ page: 1, perPage: 20, featured: true }),
+        userId ? getUserSubscriptionsApi(userId) : Promise.resolve([]),
+      ]);
+      setPlans(unwrapList(plansResponse));
+      setSubscriptions(unwrapList(subscriptionsResponse));
+    } catch (error) {
+      showErrorToast('Could not load subscriptions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const isSubscribed = (plan: any) =>
+    subscriptions.find((sub: any) => {
+      const subPlanId = sub.plan_id || sub.plan?.id || sub.plan?.guid;
+      return String(subPlanId) === String(plan.guid || plan.id);
+    });
+
+  const handleSubscribe = async (plan: any) => {
+    if (!userId) {
+      showErrorToast('User profile not loaded');
+      return;
+    }
+    const planId = plan.guid || plan.id;
+    setActingId(planId);
+    try {
+      await subscribeToPlanApi({
+        user_id: userId,
+        plan_id: planId,
+        start_date: new Date().toISOString().slice(0, 10),
+        amount_paid: Number(plan.current_price || plan.price || 0),
+        payment_method: 'mobile_app',
+        status: 'active',
+        current_week: 1,
+        progress_data: {},
+      });
+      showSuccessToast('Subscribed successfully');
+      fetchData();
+    } catch (error: any) {
+      showErrorToast(error.response?.data?.message || 'Subscription failed');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleCancel = async (subscription: any) => {
+    const id = subscription.id || subscription.guid;
+    setActingId(id);
+    try {
+      await cancelPlanSubscriptionApi(id);
+      showSuccessToast('Subscription cancelled');
+      fetchData();
+    } catch (error: any) {
+      showErrorToast(error.response?.data?.message || 'Could not cancel');
+    } finally {
+      setActingId(null);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -78,119 +113,73 @@ const SubscriptionScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.toggleWrapper}>
-        <View style={styles.toggleContainer}>
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              isMonthly && styles.activeButton,
-              styles.leftButton,
-            ]}
-            onPress={() => setIsMonthly(true)}
-          >
-            <Text
-              style={[
-                styles.toggleText,
-                isMonthly ? styles.activeText : styles.inactiveText,
-              ]}
-            >
-              MONTHLY
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              !isMonthly && styles.activeButton,
-              styles.rightButton,
-            ]}
-            onPress={() => setIsMonthly(false)}
-          >
-            <Text
-              style={[
-                styles.toggleText,
-                !isMonthly ? styles.activeText : styles.inactiveText,
-              ]}
-            >
-              YEARLY
-            </Text>
-          </TouchableOpacity>
+      {loading ? (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#83AD03" />
         </View>
-      </View>
+      ) : (
+        <FlatList
+          data={plans}
+          keyExtractor={item => String(item.guid || item.id)}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={<Text style={styles.emptyText}>No plans found.</Text>}
+          contentContainerStyle={{ paddingBottom: verticalScale(30) }}
+          renderItem={({ item: plan }) => {
+            const subscription = isSubscribed(plan);
+            const actionId = subscription?.id || subscription?.guid || plan.guid || plan.id;
+            const busy = actingId === actionId;
+            return (
+              <View style={[styles.planCard, plan.is_popular && styles.popularPlanCard]}>
+                {plan.is_popular && (
+                  <View style={styles.popularBadge}>
+                    <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+                  </View>
+                )}
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: verticalScale(30) }}
-      >
-        {plans.map((plan, index) => (
-          <View
-            key={index}
-            style={[styles.planCard, plan.isPopular && styles.popularPlanCard]}
-          >
-            {plan.isPopular && (
-              <View style={styles.popularBadge}>
-                <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
-              </View>
-            )}
-
-            <View style={{ marginBottom: verticalScale(10) }}>
-              <Text
-                style={[styles.priceText, plan.isPopular && { color: '#000' }]}
-              >
-                ${currentPrice(plan)}
-                <Text
-                  style={[
-                    styles.perMonthText,
-                    plan.isPopular && { color: '#666' },
-                  ]}
-                >
-                  {isMonthly ? ' /month' : ' /year'}
-                </Text>
-              </Text>
-              <Text
-                style={[styles.planName, plan.isPopular && { color: '#000' }]}
-              >
-                {plan.name}
-              </Text>
-              <Text
-                style={[styles.planDesc, plan.isPopular && { color: '#555' }]}
-              >
-                {plan.description}
-              </Text>
-            </View>
-
-            <View style={{ marginBottom: verticalScale(10) }}>
-              {plan.features.map((feature, i) => (
-                <View key={i} style={styles.featureRow}>
-                  <Check
-                    size={16}
-                    color={plan.isPopular ? '#83AD03' : '#c0f000'}
-                  />
-                  <Text
-                    style={[
-                      styles.featureText,
-                      plan.isPopular && { color: '#333' },
-                    ]}
-                  >
-                    {feature}
+                <View style={{ marginBottom: verticalScale(10) }}>
+                  <Text style={[styles.priceText, plan.is_popular && { color: '#000' }]}>
+                    {plan.currency || 'Rs.'} {plan.current_price || plan.price}
+                    <Text style={[styles.perMonthText, plan.is_popular && { color: '#666' }]}>
+                      {plan.billing_cycle ? ` /${plan.billing_cycle}` : ''}
+                    </Text>
+                  </Text>
+                  <Text style={[styles.planName, plan.is_popular && { color: '#000' }]}>
+                    {plan.title}
+                  </Text>
+                  <Text style={[styles.planDesc, plan.is_popular && { color: '#555' }]}>
+                    {plan.short_description || plan.description}
                   </Text>
                 </View>
-              ))}
-            </View>
 
-            <TouchableOpacity style={styles.chooseButton}>
-              <Text
-                style={[
-                  styles.chooseButtonText,
-                  plan.isPopular && { color: '#fff' },
-                ]}
-              >
-                Choose Plan
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ScrollView>
+                {(plan.available_features || plan.features || []).slice(0, 6).map((feature: any, i: number) => (
+                  <View key={i} style={styles.featureRow}>
+                    <Check size={16} color={plan.is_popular ? '#83AD03' : '#c0f000'} />
+                    <Text style={[styles.featureText, plan.is_popular && { color: '#333' }]}>
+                      {typeof feature === 'string' ? feature : feature.label || feature.name}
+                    </Text>
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  style={styles.chooseButton}
+                  disabled={busy}
+                  onPress={() =>
+                    subscription ? handleCancel(subscription) : handleSubscribe(plan)
+                  }
+                >
+                  {busy ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.chooseButtonText}>
+                      {subscription ? 'Cancel Subscription' : 'Choose Plan'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            );
+          }}
+        />
+      )}
     </View>
   );
 };
@@ -202,7 +191,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     paddingHorizontal: moderateScale(14),
-    paddingTop: verticalScale(45),
+    paddingTop: screenTopPadding,
     paddingBottom: verticalScale(45),
   },
   header: {
@@ -216,43 +205,15 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(18),
     fontWeight: '700',
   },
-  toggleWrapper: {
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: verticalScale(20),
   },
-  toggleContainer: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: 'black',
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  toggleButton: {
-    paddingVertical: verticalScale(8),
-    paddingHorizontal: scale(24),
-    backgroundColor: 'grey',
-  },
-  leftButton: {
-    borderTopLeftRadius: 50,
-    borderBottomLeftRadius: 50,
-  },
-  rightButton: {
-    borderTopRightRadius: 50,
-    borderBottomRightRadius: 50,
-  },
-  activeButton: {
-    backgroundColor: '#83AD03',
-  },
-  toggleText: {
-    fontSize: moderateScale(13),
-    fontWeight: '600',
+  emptyText: {
+    color: '#999',
     textAlign: 'center',
-  },
-  activeText: {
-    color: '#000',
-  },
-  inactiveText: {
-    color: 'black',
+    marginTop: verticalScale(80),
   },
   planCard: {
     backgroundColor: '#1a1a1a',
@@ -263,11 +224,6 @@ const styles = StyleSheet.create({
   popularPlanCard: {
     backgroundColor: '#fff',
     borderColor: '#83AD03',
-    shadowColor: '#83AD03',
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 5,
   },
   popularBadge: {
     position: 'absolute',
@@ -320,6 +276,7 @@ const styles = StyleSheet.create({
     paddingVertical: verticalScale(10),
     borderRadius: 50,
     alignItems: 'center',
+    marginTop: verticalScale(10),
   },
   chooseButtonText: {
     color: '#000',

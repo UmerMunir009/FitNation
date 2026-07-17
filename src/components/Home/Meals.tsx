@@ -121,8 +121,8 @@ const Meals: React.FC = () => {
 
   const fetchHomeMeals = async () => {
     try {
-      const response = await getMeals({ page: 1, perPage: 6 });
-      setMeals(response.data);
+      const response = await getMeals({ page: 1, perPage: 6, featured: true });
+      setMeals(response.data?.data || response.data || []);
     } catch (error) {
       console.error('Meals error:', error);
     } finally {

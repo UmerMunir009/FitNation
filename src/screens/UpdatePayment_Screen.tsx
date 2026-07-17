@@ -10,6 +10,7 @@ import {
 import { ChevronLeft } from 'lucide-react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import { useNavigation } from '@react-navigation/native';
+import { screenTopPadding } from '../theme/layout';
 
 const PaymentScreen = () => {
   const navigation = useNavigation<any>();
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     paddingHorizontal: moderateScale(16),
-    paddingTop: verticalScale(30),
+    paddingTop: screenTopPadding,
   },
   header: {
     flexDirection: 'row',

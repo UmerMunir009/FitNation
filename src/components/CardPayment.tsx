@@ -4,15 +4,10 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
-  ScrollView,
 } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
-import { useNavigation } from '@react-navigation/native';
 
 const CardPayment = () => {
-  const navigation = useNavigation<any>();
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
@@ -39,10 +34,6 @@ const CardPayment = () => {
     if (value.length <= 3) {
       setCvv(value);
     }
-  };
-
-  const handleSave = () => {
-    console.log('Payment details saved:', { cardNumber, expiryDate, cvv });
   };
 
   return (

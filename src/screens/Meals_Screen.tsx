@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { verticalScale, moderateScale } from 'react-native-size-matters';
 import Meal_Card from '../components/Home/Meal_Card';
-import { getMeals } from '../api/public';
+import { getActiveCategories, getActiveMeals, getMeals, getMealsByCategory } from '../api/public';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft } from 'lucide-react-native';
+import { screenTopPadding } from '../theme/layout';
 
 interface GalleryImage {
   id: number;
@@ -114,17 +115,37 @@ const MealsScreen: React.FC = () => {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('ALL');
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const navigation = useNavigation<any>();
 
   useEffect(() => {
     fetchMeals(filter);
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, selectedCategory]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await getActiveCategories();
+        setCategories(response.data?.data || response.data || response || []);
+      } catch (error) {
+        setCategories([]);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const fetchMeals = async (selectedFilter: FilterType) => {
     setLoading(true);
     try {
-      const response = await getMeals({ page: 1, perPage: 300 });
-      setMeals(response.data); // Keep all info in state
+      const response =
+        selectedCategory
+          ? await getMealsByCategory(selectedCategory.slug || selectedCategory.name || selectedCategory.id)
+          : selectedFilter === 'ALL'
+          ? await getActiveMeals({ page: 1, perPage: 300 })
+          : await getMeals({ page: 1, perPage: 300, type: selectedFilter });
+      setMeals(response.data?.data || response.data || []); // Keep all info in state
     } catch (error) {
       console.error('Meals error:', error);
     } finally {
@@ -175,6 +196,35 @@ const MealsScreen: React.FC = () => {
         ))}
       </View>
 
+      <FlatList
+        horizontal
+        data={[{ id: 'all', name: 'All' }, ...categories]}
+        keyExtractor={item => String(item.guid || item.id)}
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryList}
+        renderItem={({ item }) => {
+          const active =
+            (!selectedCategory && item.id === 'all') ||
+            selectedCategory?.id === item.id ||
+            selectedCategory?.guid === item.guid;
+          return (
+            <TouchableOpacity
+              style={[styles.categoryChip, active && styles.categoryChipActive]}
+              onPress={() => setSelectedCategory(item.id === 'all' ? null : item)}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  active && styles.categoryTextActive,
+                ]}
+              >
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
       {/* Meals List */}
       {loading ? (
         <View style={styles.loadingBox}>
@@ -202,7 +252,7 @@ export default MealsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: verticalScale(30),
+    paddingTop: screenTopPadding,
     backgroundColor: '#000000',
     paddingHorizontal: moderateScale(12),
   },
@@ -224,6 +274,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: verticalScale(12),
+  },
+  categoryList: {
+    marginBottom: verticalScale(12),
+    maxHeight: verticalScale(38),
+  },
+  categoryChip: {
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: moderateScale(18),
+    paddingHorizontal: moderateScale(12),
+    paddingVertical: verticalScale(6),
+    marginRight: moderateScale(8),
+  },
+  categoryChipActive: {
+    backgroundColor: '#28a745',
+    borderColor: '#28a745',
+  },
+  categoryText: {
+    color: '#aaa',
+    fontWeight: '700',
+  },
+  categoryTextActive: {
+    color: '#fff',
   },
   filterBtn: {
     paddingVertical: verticalScale(6),

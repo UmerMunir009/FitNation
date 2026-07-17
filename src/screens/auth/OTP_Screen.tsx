@@ -27,7 +27,7 @@ const ForgotPasswordOTPScreen = () => {
   const [timer, setTimer] = useState(600);
   const route = useRoute<OTPRouteProp>();
   const { email } = route.params;
-  const { verifyOTP, verifyingOTP, forgetPassword, logging } =
+  const { verifyOTP, verifyingOTP, resendOTP } =
     useContext(AuthContext);
 
   const inputRefs = useRef<TextInput[]>([]);
@@ -82,7 +82,7 @@ const ForgotPasswordOTPScreen = () => {
 
   const handleResend = async () => {
     if (email) {
-      await forgetPassword(email);
+      await resendOTP(email);
     }
   };
 

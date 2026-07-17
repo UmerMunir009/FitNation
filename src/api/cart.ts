@@ -1,19 +1,16 @@
 import api from './axiosInstance';
 
 interface AddToCartPayload {
-  item_type: 'product';
-  product_id: string;
+  item_type: 'product' | 'meal' | 'plan';
+  product_id?: string;
+  meal_id?: string;
+  plan_id?: string;
   quantity: number;
+  options?: Record<string, unknown>;
 }
 
-export const addSupplementToCart = async (itemType: 'product',productId: string,quantity: number) => {
+export const addItemToCartApi = async (payload: AddToCartPayload) => {
   try {
-    const payload: AddToCartPayload = {
-      item_type: itemType,
-      product_id: productId,
-      quantity,
-    };
-
     const response = await api.post('/api/v1/cart/add', payload);
     return response.data;
   } catch (error) {
@@ -21,6 +18,35 @@ export const addSupplementToCart = async (itemType: 'product',productId: string,
     throw error;
   }
 };
+
+export const addItemToCartFormApi = async (payload: AddToCartPayload) => {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(
+        key,
+        typeof value === 'object' ? JSON.stringify(value) : String(value),
+      );
+    }
+  });
+  const response = await api.post('/api/v1/cart/add', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const addSupplementToCart = async (
+  itemType: 'product',
+  productId: string,
+  quantity: number,
+) => addItemToCartApi({ item_type: itemType, product_id: productId, quantity });
+
+export const addMealToCartApi = async (mealId: string | number, quantity = 1) =>
+  addItemToCartFormApi({
+    item_type: 'meal',
+    meal_id: mealId.toString(),
+    quantity,
+  });
 
 
 export const getCartApi = async () => {
@@ -58,21 +84,12 @@ export const updateCartItemApi = async (itemId: number, quantity: number) => {
 };
 
 
-export const addPlanToCartApi = async (planId: string | number) => {
-  try {
-    const payload = {
-      item_type: "plan",
-      plan_id: planId.toString(), 
-      quantity: 1
-    };
-
-    const response = await api.post('/api/v1/cart/add', payload);
-    return response.data;
-  } catch (error) {
-    console.error('Error adding plan to cart:', error);
-    throw error;
-  }
-};
+export const addPlanToCartApi = async (planId: string | number, quantity = 1) =>
+  addItemToCartApi({
+    item_type: 'plan',
+    plan_id: planId.toString(),
+    quantity,
+  });
 
 export const removeCartItemApi = async (itemId: number) => {
   try {
@@ -82,4 +99,16 @@ export const removeCartItemApi = async (itemId: number) => {
     console.error('Error removing item from cart:', error);
     throw error;
   }
+};
+
+export const applyCouponApi = async (couponCode: string) => {
+  const response = await api.post('/api/v1/cart/apply-coupon', {
+    coupon_code: couponCode,
+  });
+  return response.data;
+};
+
+export const removeCouponApi = async () => {
+  const response = await api.delete('/api/v1/cart/remove-coupon');
+  return response.data;
 };

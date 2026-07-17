@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
         }),
       ]).start(() => setIsMounted(false)); 
     }
-  }, [visible]);
+  }, [fadeAnim, slideAnim, visible]);
 
   if (!isMounted) return null;
 

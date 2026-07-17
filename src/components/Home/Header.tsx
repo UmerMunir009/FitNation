@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     flex: 1,
     justifyContent: "space-between",
-    paddingTop: verticalScale(10),
+    paddingTop: 0,
   },
   navBar: {
     flexDirection: "row",

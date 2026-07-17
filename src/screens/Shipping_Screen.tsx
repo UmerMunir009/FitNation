@@ -8,12 +8,15 @@ import {
   StyleSheet,
   Image,
   Switch,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ChevronDown } from 'lucide-react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import CardPayment from '../components/CardPayment';
+import { checkoutApi, verifyPaymentApi } from '../api/orders';
+import { showErrorToast, showSuccessToast } from '../utils/toast';
+import { screenTopPadding } from '../theme/layout';
 
 type RouteParams = {
   total?: number;
@@ -35,7 +38,7 @@ const ShippingScreen: React.FC = () => {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [subscribe, setSubscribe] = useState(false);
 
-  const [country, setCountry] = useState('Pakistan');
+  const [country] = useState('Pakistan');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [company, setCompany] = useState('');
@@ -48,13 +51,63 @@ const ShippingScreen: React.FC = () => {
 
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
   const [useSameBilling, setUseSameBilling] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const subtotal = 6099.0;
+  const subtotal = Number(totalFromCart) || 0;
   const shippingCharge = 0;
   const estimatesTaxes =
     Math.round((subtotal + shippingCharge) * 0.15 * 100) / 100;
   const total =
     Math.round((subtotal + shippingCharge + estimatesTaxes) * 100) / 100;
+
+  const handleCompleteOrder = async () => {
+    if (!firstName || !lastName || !address || !city || !phone || !emailOrPhone) {
+      showErrorToast('Please complete delivery and contact details');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        billing_first_name: useSameBilling ? firstName : firstName,
+        billing_last_name: useSameBilling ? lastName : lastName,
+        billing_address: useSameBilling ? address : address,
+        billing_city: useSameBilling ? city : city,
+        billing_state: '',
+        billing_country: country,
+        billing_zipcode: postalCode,
+        shipping_first_name: firstName,
+        shipping_last_name: lastName,
+        shipping_address: address,
+        shipping_city: city,
+        shipping_state: '',
+        shipping_country: country,
+        shipping_zipcode: postalCode,
+        customer_name: `${firstName} ${lastName}`.trim(),
+        customer_email: emailOrPhone.includes('@') ? emailOrPhone : '',
+        customer_phone: phone || emailOrPhone,
+        payment_method: paymentMethod === 'card' ? 'stripe' : 'cod',
+        shipping_method: 'standard',
+        agree_terms: true,
+      };
+      const response = await checkoutApi(payload);
+      const orderNumber =
+        response?.data?.order_number ||
+        response?.data?.order?.order_number ||
+        response?.order_number;
+
+      if (paymentMethod === 'card' && orderNumber) {
+        await verifyPaymentApi(orderNumber, `mobile-${Date.now()}`);
+      }
+
+      showSuccessToast('Order placed successfully');
+      navigation.navigate('myOrders' as never);
+    } catch (error: any) {
+      showErrorToast(error.response?.data?.message || 'Checkout failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -263,8 +316,16 @@ const ShippingScreen: React.FC = () => {
             <Text style={styles.totalValue}>PKR Rs. {total.toFixed(2)}</Text>
           </View>
 
-          <TouchableOpacity style={styles.completeBtn}>
-            <Text style={styles.completeBtnText}>Complete Order</Text>
+          <TouchableOpacity
+            style={styles.completeBtn}
+            onPress={handleCompleteOrder}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Text style={styles.completeBtnText}>Complete Order</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -283,7 +344,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: scale(14),
-    paddingTop: Platform.OS === 'ios' ? verticalScale(44) : verticalScale(18),
+    paddingTop: screenTopPadding,
     paddingBottom: verticalScale(12),
   },
   logoImage: {

@@ -129,8 +129,12 @@ const Fitness_Programs = () => {
 
   const fetchFitnessPrograms = async () => {
     try {
-      const response = await getFitnessPrograms({ page: 1, perPage: 6 }); 
-      setPrograms(response.data.data);
+      const response = await getFitnessPrograms({
+        page: 1,
+        perPage: 6,
+        featured: true,
+      });
+      setPrograms(response.data?.data || response.data || []);
     } catch (error) {
       console.error('Fitness Programs error:', error);
     } finally {

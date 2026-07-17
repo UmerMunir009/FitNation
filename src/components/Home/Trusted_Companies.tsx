@@ -27,7 +27,7 @@ const TrustedCompanies = () => {
       }).start(() => loopScroll());
     };
     loopScroll();
-  }, [totalWidth]);
+  }, [scrollX, totalWidth]);
 
   return (
     <View style={styles.container}>

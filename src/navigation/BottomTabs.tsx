@@ -2,22 +2,25 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, TouchableOpacity, StyleSheet, Text, Image } from 'react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { bottomNavOffset } from '../theme/layout';
 
 // Screens
 import HomeScreen from '../screens/Home_Screen';
-import ShopScreen from '../screens/Home_Screen';
 import FitnessProgramScreen from '../screens/FitnessProgram_Screen';
-import MyOrdersScreen from '../screens/Home_Screen';
 import SettingScreen from '../screens/Setting_Screen';
+import ChatScreen from '../screens/Chat_Screen';
 
 const Tab = createBottomTabNavigator();
 
-const CustomTabBar = ({ state, descriptors, navigation }: any) => {
+const CustomTabBar = ({ state, navigation }: any) => {
+  const insets = useSafeAreaInsets();
   const getTabLabel = (routeName: string) => {
     const labels: { [key: string]: string } = {
       Home: 'Home',
       // Shop: 'Shop',
       FitnessProgram: 'Fitness Program',
+      Chat: 'Chat',
       // MyOrders: 'My Orders',
       Settings: 'Settings',
     };
@@ -38,6 +41,10 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
         return isFocused
           ? require('../assets/images/fitness-program_icon.png')
           : require('../assets/images/fitness-program_icon.png');
+      case 'Chat':
+        return isFocused
+          ? require('../assets/images/message_box.png')
+          : require('../assets/images/message_box.png');
       // case 'MyOrders':
       //   return isFocused
       //     ? require('../assets/images/order_icon.png')
@@ -52,11 +59,18 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
   };
 
   return (
-    <View style={styles.tabBarContainer}>
+    <View
+      style={[
+        styles.tabBarContainer,
+        { bottom: Math.max(insets.bottom, bottomNavOffset) },
+      ]}
+    >
       <View style={[styles.tabBar, { backgroundColor: '#282828' }]}>
         {state.routes.map((route: any, index: number) => {
           const isFocused = state.index === index;
           const iconSource = getTabIcon(route.name, isFocused);
+          const iconScale =
+            route.name === 'Chat' && !isFocused ? [{ scale: 1.9 }] : [];
 
           return (
             <TouchableOpacity
@@ -70,6 +84,7 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
                   width: moderateScale(22),
                   height: moderateScale(22),
                   tintColor: isFocused ? '#1f2937' : '#ffffff',
+                  transform: iconScale,
                 }}
                 resizeMode="contain"
               />
@@ -100,6 +115,7 @@ export default function BottomTabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       {/* <Tab.Screen name="Shop" component={ShopScreen} /> */}
       <Tab.Screen name="FitnessProgram" component={FitnessProgramScreen} />
+      <Tab.Screen name="Chat" component={ChatScreen} />
       {/* <Tab.Screen name="MyOrders" component={MyOrdersScreen} /> */}
       <Tab.Screen name="Settings" component={SettingScreen} />
     </Tab.Navigator>
@@ -109,7 +125,6 @@ export default function BottomTabs() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'absolute',
-    bottom: verticalScale(20),
     left: scale(16),
     right: scale(16),
     borderRadius: scale(30),

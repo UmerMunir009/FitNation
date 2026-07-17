@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,14 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
+import { showErrorToast } from '../utils/toast';
+import { screenTopPadding } from '../theme/layout';
 
 type ErrorState = {
   name?: string;
@@ -20,34 +24,95 @@ type ErrorState = {
 
 const EditProfileScreen = () => {
   const navigation = useNavigation();
+  const { user, fetchProfile, updateProfile, changePassword } =
+    useContext(AuthContext);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedField, setFocusedField] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [age, setAge] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
+  const [fitnessGoal, setFitnessGoal] = useState('');
+  const [bio, setBio] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [errors, setErrors] = useState<ErrorState>({});
 
-  const handleSignUp = () => {
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await fetchProfile();
+        const data = profile || user || {};
+        setName(data.name || '');
+        setEmail(data.email || '');
+        setPhone(data.phone || '');
+        setAge(data.age ? String(data.age) : '');
+        setHeight(data.height ? String(data.height) : '');
+        setWeight(data.weight ? String(data.weight) : '');
+        setFitnessGoal(data.fitness_goal || '');
+        setBio(data.bio || '');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSave = async () => {
     let newErrors: ErrorState = {};
     if (!name.trim()) newErrors.name = 'Name is required';
     if (!email.trim()) newErrors.email = 'Email is required';
-    if (!password.trim()) newErrors.password = 'Password is required';
-    if (!confirmPassword.trim())
-      newErrors.confirmPassword = 'Please confirm your password';
-    if (password && confirmPassword && password !== confirmPassword)
+    if ((password || confirmPassword || currentPassword) && !currentPassword)
+      newErrors.password = 'Current password is required';
+    if (password && password !== confirmPassword)
       newErrors.confirmPassword = 'Passwords do not match';
 
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length === 0) {
-      console.log('Sign Up successful!');
+      try {
+        setSaving(true);
+        await updateProfile({
+          name,
+          email,
+          phone,
+          age,
+          height,
+          weight,
+          fitness_goal: fitnessGoal,
+          bio,
+        });
+        if (currentPassword && password) {
+          await changePassword(currentPassword, password, confirmPassword);
+          setCurrentPassword('');
+          setPassword('');
+          setConfirmPassword('');
+        }
+      } catch (error: any) {
+        showErrorToast(error.response?.data?.message || 'Could not update profile');
+      } finally {
+        setSaving(false);
+      }
     }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loader]}>
+        <ActivityIndicator size="large" color="#ADE406" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -97,7 +162,85 @@ const EditProfileScreen = () => {
       />
       {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
-      <Text style={styles.label}>Password</Text>
+      <Text style={styles.label}>Phone</Text>
+      <TextInput
+        placeholder="+923001234567"
+        placeholderTextColor="#888"
+        keyboardType="phone-pad"
+        value={phone}
+        onChangeText={setPhone}
+        style={styles.input}
+      />
+
+      <View style={styles.inlineRow}>
+        <View style={styles.inlineField}>
+          <Text style={styles.label}>Age</Text>
+          <TextInput
+            placeholder="28"
+            placeholderTextColor="#888"
+            keyboardType="number-pad"
+            value={age}
+            onChangeText={setAge}
+            style={styles.input}
+          />
+        </View>
+        <View style={styles.inlineField}>
+          <Text style={styles.label}>Height</Text>
+          <TextInput
+            placeholder="175"
+            placeholderTextColor="#888"
+            keyboardType="number-pad"
+            value={height}
+            onChangeText={setHeight}
+            style={styles.input}
+          />
+        </View>
+        <View style={styles.inlineField}>
+          <Text style={styles.label}>Weight</Text>
+          <TextInput
+            placeholder="75"
+            placeholderTextColor="#888"
+            keyboardType="number-pad"
+            value={weight}
+            onChangeText={setWeight}
+            style={styles.input}
+          />
+        </View>
+      </View>
+
+      <Text style={styles.label}>Fitness Goal</Text>
+      <TextInput
+        placeholder="muscle_gain"
+        placeholderTextColor="#888"
+        value={fitnessGoal}
+        onChangeText={setFitnessGoal}
+        style={styles.input}
+      />
+
+      <Text style={styles.label}>Bio</Text>
+      <TextInput
+        placeholder="Tell us about your fitness journey"
+        placeholderTextColor="#888"
+        value={bio}
+        onChangeText={setBio}
+        multiline
+        style={[styles.input, styles.textArea]}
+      />
+
+      <Text style={styles.label}>Current Password</Text>
+      <TextInput
+        placeholder="Required only when changing password"
+        placeholderTextColor="#888"
+        secureTextEntry
+        value={currentPassword}
+        onChangeText={setCurrentPassword}
+        style={[styles.input, errors.password && styles.errorBorder]}
+      />
+      {errors.password && (
+        <Text style={styles.errorText}>{errors.password}</Text>
+      )}
+
+      <Text style={styles.label}>New Password</Text>
       <View style={styles.passwordContainer}>
         <TextInput
           placeholder="*******"
@@ -125,11 +268,7 @@ const EditProfileScreen = () => {
           )}
         </TouchableOpacity>
       </View>
-      {errors.password && (
-        <Text style={styles.errorText}>{errors.password}</Text>
-      )}
-
-      <Text style={styles.label}>Confirm Password</Text>
+      <Text style={styles.label}>Confirm New Password</Text>
       <View style={styles.passwordContainer}>
         <TextInput
           placeholder="*******"
@@ -161,8 +300,16 @@ const EditProfileScreen = () => {
         <Text style={styles.errorText}>{errors.confirmPassword}</Text>
       )}
 
-      <TouchableOpacity style={styles.saveBtn} onPress={handleSignUp}>
-        <Text style={styles.savetxt}>Save</Text>
+      <TouchableOpacity
+        style={styles.saveBtn}
+        onPress={handleSave}
+        disabled={saving}
+      >
+        {saving ? (
+          <ActivityIndicator size="small" color="#000" />
+        ) : (
+          <Text style={styles.savetxt}>Save</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -176,8 +323,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     paddingHorizontal: scale(20),
   },
+  loader: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollContent: {
-    paddingTop: verticalScale(30),
+    paddingTop: screenTopPadding,
     paddingBottom: verticalScale(40),
   },
     header: {
@@ -226,6 +377,17 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(10),
     borderWidth: 1.2,
     borderColor: '#1a1a1a',
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    gap: scale(8),
+  },
+  inlineField: {
+    flex: 1,
+  },
+  textArea: {
+    minHeight: verticalScale(80),
+    textAlignVertical: 'top',
   },
   focusedInput: {
     borderColor: '#ADE406',

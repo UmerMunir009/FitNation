@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Image,
   ActivityIndicator,
   RefreshControl,
   Modal,
   Pressable,
+  TextInput,
 } from 'react-native';
 import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
 import { Trash2, AlertTriangle, Plus, Minus, ShoppingBag } from 'lucide-react-native';
@@ -20,9 +20,12 @@ import {
   clearCartApi, 
   getCartSummaryApi, 
   updateCartItemApi,
-  removeCartItemApi 
+  removeCartItemApi,
+  applyCouponApi,
+  removeCouponApi,
 } from '../api/cart';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
+import RemoteImage from '../components/RemoteImage';
 
 type CartItem = {
   id: number;
@@ -44,6 +47,8 @@ const CartScreen = () => {
   const [isClearing, setIsClearing] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null); 
+  const [couponCode, setCouponCode] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
 
   
   const fetchCartData = async (showLoading = true) => {
@@ -136,6 +141,34 @@ const CartScreen = () => {
     navigation.navigate('shipping', { total: summary?.grand_total });
   };
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    try {
+      await applyCouponApi(couponCode.trim());
+      showSuccessToast('Coupon applied');
+      await fetchCartData(false);
+    } catch (err) {
+      showErrorToast('Invalid coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = async () => {
+    setCouponLoading(true);
+    try {
+      await removeCouponApi();
+      setCouponCode('');
+      showSuccessToast('Coupon removed');
+      await fetchCartData(false);
+    } catch (err) {
+      showErrorToast('Could not remove coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <NavBar />
@@ -224,7 +257,7 @@ const CartScreen = () => {
               <View style={styles.cardWrapper}>
                 <View style={styles.card}>
                   <View style={styles.imageBox}>
-                    <Image source={{ uri: item.image_url }} style={styles.image} />
+                    <RemoteImage sourceUri={item.image_url} style={styles.image} />
                   </View>
 
                   <View style={styles.details}>
@@ -278,6 +311,30 @@ const CartScreen = () => {
             ListFooterComponent={
               summary && (
                 <View style={styles.summaryBox}>
+                  <View style={styles.couponRow}>
+                    <TextInput
+                      value={couponCode}
+                      onChangeText={setCouponCode}
+                      placeholder="Coupon code"
+                      placeholderTextColor="#777"
+                      autoCapitalize="characters"
+                      style={styles.couponInput}
+                    />
+                    <TouchableOpacity
+                      style={styles.couponBtn}
+                      onPress={handleApplyCoupon}
+                      disabled={couponLoading}
+                    >
+                      <Text style={styles.couponBtnText}>
+                        {couponLoading ? '...' : 'Apply'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {!!summary.discount && (
+                    <TouchableOpacity onPress={handleRemoveCoupon}>
+                      <Text style={styles.removeCouponText}>Remove coupon</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Sub Total</Text>
                     <Text style={styles.summaryValue}>Rs. {summary.subtotal}</Text>
@@ -290,6 +347,12 @@ const CartScreen = () => {
                     <Text style={styles.summaryLabel}>Delivery</Text>
                     <Text style={styles.summaryValue}>Rs. {summary.shipping}</Text>
                   </View>
+                  {!!summary.discount && (
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Discount</Text>
+                      <Text style={styles.summaryValue}>- Rs. {summary.discount}</Text>
+                    </View>
+                  )}
                   <View style={styles.totalRow}>
                     <Text style={styles.totalText}>Total</Text>
                     <Text style={styles.totalText}>Rs. {summary.grand_total}</Text>
@@ -310,7 +373,7 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: '#0F0F0F', 
-    paddingTop: verticalScale(10) 
+    paddingTop: 0,
   },
   innerLoader: { 
     flex: 0.8, 
@@ -485,6 +548,36 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(20), 
     borderRadius: moderateScale(12), 
     marginBottom: verticalScale(30) 
+  },
+  couponRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(8),
+    marginBottom: verticalScale(12),
+  },
+  couponInput: {
+    flex: 1,
+    backgroundColor: '#222',
+    borderColor: '#333',
+    borderWidth: 1,
+    borderRadius: moderateScale(8),
+    color: '#fff',
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(8),
+  },
+  couponBtn: {
+    backgroundColor: '#ADE406',
+    borderRadius: moderateScale(8),
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(9),
+  },
+  couponBtnText: {
+    color: '#000',
+    fontWeight: '800',
+  },
+  removeCouponText: {
+    color: '#FFB84D',
+    marginBottom: verticalScale(8),
   },
   summaryRow: { 
     flexDirection: 'row', 

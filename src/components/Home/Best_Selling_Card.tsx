@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
-import { scale, verticalScale, moderateScale } from "react-native-size-matters";
+import { verticalScale, moderateScale } from "react-native-size-matters";
 import { useNavigation } from "@react-navigation/native";
 import { addSupplementToCart } from "../../api/cart";
 import { Check } from "lucide-react-native";
 import { showErrorToast, showSuccessToast } from '../../utils/toast';
+import RemoteImage from "../RemoteImage";
 
 
 interface Product {
@@ -81,7 +82,7 @@ const BestSellingCard: React.FC<Props> = ({ product, inCart = false, refreshCart
       onPress={goToDetail}
       activeOpacity={0.85}
     >
-      <Image source={{ uri: product.image_url }} style={styles.image} />
+      <RemoteImage sourceUri={product.image_url} style={styles.image} />
 
       <Text style={styles.title} numberOfLines={1}>
         {product.name}

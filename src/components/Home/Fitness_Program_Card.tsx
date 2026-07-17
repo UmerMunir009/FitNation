@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, ImageBackground, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { scale, verticalScale } from 'react-native-size-matters';
 import { useNavigation } from '@react-navigation/native';
+import RemoteImage from '../RemoteImage';
 
 type FitnessProgramCardProps = {
   program: any; 
@@ -15,11 +16,8 @@ const FitnessProgramCard: React.FC<FitnessProgramCardProps> = ({ program }) => {
       activeOpacity={0.9} 
       onPress={() => navigation.navigate('fitnessProgramDetails', { program })}
     >
-      <ImageBackground 
-        source={{ uri: program.image_url }} 
-        style={styles.card} 
-        imageStyle={styles.image}
-      >
+      <View style={styles.card}>
+        <RemoteImage sourceUri={program.image_url} style={styles.image} />
         <View style={styles.overlay}>
           <Text style={styles.title}>{program.title}</Text>
 
@@ -36,7 +34,7 @@ const FitnessProgramCard: React.FC<FitnessProgramCardProps> = ({ program }) => {
             />
           </View>
         </View>
-      </ImageBackground>
+      </View>
     </TouchableOpacity>
   );
 };
@@ -48,7 +46,10 @@ const styles = StyleSheet.create({
     borderRadius: scale(12),
     overflow: 'hidden',
   },
-  image: { borderRadius: scale(12) },
+  image: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: scale(12),
+  },
   overlay: {
     position: 'absolute',
     bottom: 0,

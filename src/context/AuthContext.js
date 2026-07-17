@@ -6,7 +6,11 @@ import {
   registerApi,
   forgotPasswordApi,
   verifyOTPApi,
-  resetPasswordApi
+  resetPasswordApi,
+  resendOTPApi,
+  updateProfileApi,
+  changePasswordApi,
+  logoutApi,
 } from '../api/auth';
 import { showErrorToast, showSuccessToast } from '../utils/toast';
 
@@ -39,17 +43,16 @@ export const AuthProvider = ({ children }) => {
       setSigningUp(true);
 
       const res = await registerApi(name, email, password, confirmPassword);
-
-      await AsyncStorage.setItem('token', res.data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
-
-      setToken(res.data.token);
-      setUser(JSON.stringify(res.data.user));
       setTimeout(() => {
-        showSuccessToast('Sign-up Successful');
+        showSuccessToast('Sign-up Successful. Please login.');
       }, 100);
+      return res;
     } catch (error) {
-      showErrorToast(error.response?.data?.errors?.email[0])
+      showErrorToast(
+        error.response?.data?.errors?.email?.[0] ||
+          error.response?.data?.message ||
+          'Registration failed',
+      );
       console.log('Registration error:', error.response?.data?.message);
       throw new Error(error.response?.data?.message || 'Registration failed');
     } finally {
@@ -60,15 +63,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setLogging(true);
-      console.log(email,password)
       const res = await loginApi(email, password);
-      console.log(res.data.token)
 
       await AsyncStorage.setItem('token', res.data.token);
       await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
 
       setToken(res.data.token);
-      setUser(JSON.stringify(res.data.user));
+      setUser(res.data.user);
       setTimeout(() => {
         showSuccessToast('Login Successful');
       }, 100);
@@ -108,6 +109,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const resendOTP = async email => {
+    try {
+      setVerifyingOTP(true);
+      await resendOTPApi(email);
+      showSuccessToast('OTP resent successfully.');
+      return true;
+    } catch (error) {
+      showErrorToast(error.response?.data?.message || 'Could not resend OTP');
+      throw new Error(error.response?.data?.message || 'Could not resend OTP');
+    } finally {
+      setVerifyingOTP(false);
+    }
+  };
+
   const resetPassword = async (email,otp,password,newPassword) => {
     try {
       setResetting(true);
@@ -126,13 +141,44 @@ export const AuthProvider = ({ children }) => {
   const fetchProfile = async () => {
     try {
       const userData = await getProfileApi();
-      setUser(userData);
+      const profile = userData?.data?.user || userData?.data || userData;
+      setUser(profile);
+      await AsyncStorage.setItem('user', JSON.stringify(profile));
+      return profile;
     } catch (error) {
       console.error('Failed to fetch profile:', error);
     }
   };
 
+  const updateProfile = async profile => {
+    const data = await updateProfileApi(profile);
+    const updatedUser = data?.data?.user || data?.data || data;
+    setUser(updatedUser);
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    showSuccessToast('Profile updated successfully');
+    return updatedUser;
+  };
+
+  const changePassword = async (
+    currentPassword,
+    newPassword,
+    confirmPassword,
+  ) => {
+    const data = await changePasswordApi(
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    );
+    showSuccessToast('Password changed successfully');
+    return data;
+  };
+
   const logout = async () => {
+    try {
+      await logoutApi();
+    } catch (error) {
+      console.log('Logout API failed:', error.response?.data?.message);
+    }
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
     setToken(null);
@@ -149,9 +195,12 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         verifyOTP,
+        resendOTP,
         setVerifyingOTP,
         forgetPassword,
         fetchProfile,
+        updateProfile,
+        changePassword,
         register,
         signingUp,
         verifyingOTP,

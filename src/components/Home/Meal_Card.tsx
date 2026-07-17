@@ -1,7 +1,10 @@
-import React from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { verticalScale, moderateScale } from "react-native-size-matters";
 import { useNavigation } from "@react-navigation/native";
+import { addMealToCartApi } from "../../api/cart";
+import { showErrorToast, showSuccessToast } from "../../utils/toast";
+import RemoteImage from "../RemoteImage";
 
 interface GalleryImage {
   id: number;
@@ -105,13 +108,26 @@ type MealCardProps = {
 
 const Meal_Card: React.FC<MealCardProps> = ({ meal }) => {
   const navigation = useNavigation<any>();
+  const [adding, setAdding] = useState(false);
+
+  const handleAddToCart = async () => {
+    setAdding(true);
+    try {
+      await addMealToCartApi(meal.guid || meal.id);
+      showSuccessToast(`${meal.name} added to cart`);
+    } catch (error: any) {
+      showErrorToast(error.response?.data?.message || "Could not add meal");
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => navigation.navigate("mealDetail", { meal })}
     >
-      <Image source={{ uri: meal.image_url }} style={styles.image} />
+      <RemoteImage sourceUri={meal.image_url} style={styles.image} />
 
       <Text style={styles.title} numberOfLines={1}>
         {meal.name}
@@ -129,10 +145,16 @@ const Meal_Card: React.FC<MealCardProps> = ({ meal }) => {
 
       <View style={styles.priceRow}>
         <Text style={styles.price}>Rs. {meal.current_price}</Text>
-        <Image
-          source={require("../../assets/images/green_cart.png")}
-          style={styles.cartIcon}
-        />
+        <TouchableOpacity onPress={handleAddToCart} disabled={adding}>
+          {adding ? (
+            <ActivityIndicator size="small" color="#ADE406" />
+          ) : (
+            <Image
+              source={require("../../assets/images/green_cart.png")}
+              style={styles.cartIcon}
+            />
+          )}
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );

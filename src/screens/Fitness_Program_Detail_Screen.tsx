@@ -1,14 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { scale, verticalScale } from 'react-native-size-matters';
 import {
@@ -18,32 +15,59 @@ import {
   Star,
   Zap,
   CheckCircle2,
-  ShieldCheck,
 } from 'lucide-react-native';
-
-const { width } = Dimensions.get('window');
+import { addPlanToCartApi } from '../api/cart';
+import { getPlanDetail } from '../api/public';
+import { showErrorToast, showSuccessToast } from '../utils/toast';
+import { floatingBackTop } from '../theme/layout';
+import RemoteImage from '../components/RemoteImage';
 
 const FitnessProgramDetailScreen = ({ route, navigation }: any) => {
   const { program } = route.params;
+  const [detail, setDetail] = useState(program);
+  const [adding, setAdding] = useState(false);
 
-  const equipment = program.equipment_required
-    ? JSON.parse(program.equipment_required)
+  React.useEffect(() => {
+    const fetchDetail = async () => {
+      const id = program?.guid || program?.id;
+      if (!id) return;
+      try {
+        const response = await getPlanDetail(id);
+        setDetail(response?.data || response);
+      } catch (error) {
+        setDetail(program);
+      }
+    };
+    fetchDetail();
+  }, [program]);
+
+  const equipment = Array.isArray(detail.equipment_required)
+    ? detail.equipment_required
+    : detail.equipment_required
+    ? JSON.parse(detail.equipment_required)
     : [];
+
+  const handleGetStarted = async () => {
+    setAdding(true);
+    try {
+      await addPlanToCartApi(detail.guid || detail.id);
+      showSuccessToast('Plan added to cart');
+      navigation.navigate('cart');
+    } catch (error: any) {
+      showErrorToast(error.response?.data?.message || 'Could not add plan');
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar
-        barStyle="light-content"
-        translucent
-        backgroundColor="transparent"
-      />
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.imageContainer}>
-          <Image source={{ uri: program.image_url }} style={styles.mainImage} />
+          <RemoteImage sourceUri={detail.image_url} style={styles.mainImage} />
           <View style={styles.headerOverlay} />
           <TouchableOpacity
             style={styles.backButton}
@@ -53,7 +77,7 @@ const FitnessProgramDetailScreen = ({ route, navigation }: any) => {
           </TouchableOpacity>
 
           <View style={styles.badgeContainer}>
-            {program.badges?.map((badge: any, index: number) => (
+            {detail.badges?.map((badge: any, index: number) => (
               <View
                 key={index}
                 style={[
@@ -80,45 +104,45 @@ const FitnessProgramDetailScreen = ({ route, navigation }: any) => {
         <View style={styles.content}>
           <View style={styles.badgeRow}>
             <Text style={styles.categoryBadge}>
-              {program.plan_category_label}
+              {detail.plan_category_label}
             </Text>
             <View style={styles.ratingRow}>
               <Star color="#b2fd62" size={scale(14)} fill="#b2fd62" />
               <Text style={styles.ratingText}>
-                {program.rating || '4.8'} ({program.rating_count} reviews)
+                {detail.rating || '4.8'} ({detail.rating_count} reviews)
               </Text>
             </View>
           </View>
 
-          <Text style={styles.title}>{program.title}</Text>
-          <Text style={styles.shortDesc}>{program.short_description}</Text>
+          <Text style={styles.title}>{detail.title}</Text>
+          <Text style={styles.shortDesc}>{detail.short_description}</Text>
 
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
               <Clock color="#b2fd62" size={scale(18)} />
-              <Text style={styles.statValue}>{program.duration_formatted}</Text>
+              <Text style={styles.statValue}>{detail.duration_formatted}</Text>
               <Text style={styles.statLabel}>Duration</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Dumbbell color="#b2fd62" size={scale(18)} />
               <Text style={styles.statValue}>
-                {program.intensity_level_label}
+                {detail.intensity_level_label}
               </Text>
               <Text style={styles.statLabel}>Intensity</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Zap color="#b2fd62" size={scale(18)} />
-              <Text style={styles.statValue}>{program.workouts_per_week}</Text>
+              <Text style={styles.statValue}>{detail.workouts_per_week}</Text>
               <Text style={styles.statLabel}>Days/Week</Text>
             </View>
           </View>
 
           <Text style={styles.sectionTitle}>Overview</Text>
-          <Text style={styles.longDescription}>{program.description}</Text>
+          <Text style={styles.longDescription}>{detail.description}</Text>
 
-          {program.gallery_images?.length > 0 && (
+          {detail.gallery_images?.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Gallery</Text>
               <ScrollView
@@ -126,10 +150,10 @@ const FitnessProgramDetailScreen = ({ route, navigation }: any) => {
                 showsHorizontalScrollIndicator={false}
                 style={styles.galleryScroll}
               >
-                {program.gallery_images.map((img: any) => (
-                  <Image
+                {detail.gallery_images.map((img: any) => (
+                  <RemoteImage
                     key={img.id}
-                    source={{ uri: img.image_url }}
+                    sourceUri={img.image_url}
                     style={styles.galleryImage}
                   />
                 ))}
@@ -181,17 +205,25 @@ const FitnessProgramDetailScreen = ({ route, navigation }: any) => {
           <Text style={styles.priceLabel}>Total Investment</Text>
           <View style={styles.priceRow}>
             <Text style={styles.price}>
-              {program.currency} {program.current_price}
+              {detail.currency} {detail.current_price}
             </Text>
-            {program.has_discount && (
+            {detail.has_discount && (
               <Text style={styles.oldPrice}>
-                {program.currency} {program.original_price}
+                {detail.currency} {detail.original_price}
               </Text>
             )}
           </View>
         </View>
-        <TouchableOpacity style={styles.buyButton}>
-          <Text style={styles.buyButtonText}>Get Started</Text>
+        <TouchableOpacity
+          style={styles.buyButton}
+          onPress={handleGetStarted}
+          disabled={adding}
+        >
+          {adding ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <Text style={styles.buyButtonText}>Get Started</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -209,7 +241,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: verticalScale(50),
+    top: floatingBackTop,
     left: scale(20),
     backgroundColor: 'rgba(0,0,0,0.5)',
     padding: scale(10),

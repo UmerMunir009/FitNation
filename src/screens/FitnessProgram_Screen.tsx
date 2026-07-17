@@ -1,164 +1,109 @@
-import React, { useState } from "react"
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   Image,
-} from "react-native"
-import { scale, verticalScale, moderateScale } from "react-native-size-matters"
-import NavBar from "../components/Navbar"
+  ActivityIndicator,
+} from 'react-native';
+import { scale, verticalScale, moderateScale } from 'react-native-size-matters';
+import NavBar from '../components/Navbar';
+import { getPlansByGoal, getPlansByType } from '../api/public';
+import { addPlanToCartApi } from '../api/cart';
+import { showErrorToast, showSuccessToast } from '../utils/toast';
+import RemoteImage from '../components/RemoteImage';
 
-type PlanType = "diet" | "workout"
-type GoalType = "weight gain" | "weight loss" | "balanced"
-type TabType = "oneTime" | "membership"
+type PlanType = 'ONE_TIME' | 'MEMBERSHIP';
+type CategoryType = 'DIET' | 'WORKOUT';
+type GoalType = 'WEIGHT_GAIN' | 'WEIGHT_LOSS' | 'MUSCLE_BUILDING';
 
-const allPlans = {
-  oneTime: [
-    {
-      id: "1",
-      image: require("../assets/images/meal_1.jpg"),
-      title: "Weight Gain Plan",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "diet",
-      goal: "weight gain",
-    },
-    {
-      id: "2",
-      image: require("../assets/images/meal_2.jpg"),
-      title: "Weight Gain Plan",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "workout",
-      goal: "weight gain",
-    },
-    {
-      id: "3",
-      image: require("../assets/images/meal_3.jpg"),
-      title: "PROTINE JAR",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "diet",
-      goal: "weight loss",
-    },
-    {
-      id: "4",
-      image: require("../assets/images/meal_4.jpg"),
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "workout",
-      goal: "balanced",
-    },
-     {
-      id: "5",
-      image: require("../assets/images/meal_5.jpg"),
-      title: "Weight Gain Plan",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "diet",
-      goal: "weight gain",
-    },
+const unwrapPlans = (payload: any) => {
+  const data = payload?.data?.data || payload?.data || payload;
+  return Array.isArray(data) ? data : [];
+};
 
-     {
-      id: "6",
-      image: require("../assets/images/feature_1.jpg"),
-      title: "Weight Gain Plan",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "diet",
-      goal: "weight gain",
-    },
-     {
-      id: "7",
-      image: require("../assets/images/feature_2.jpg"),
-      title: "Weight Gain Plan",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "diet",
-      goal: "weight gain",
-    },
-     {
-      id: "8",
-      image: require("../assets/images/feature_3.jpg"),
-      title: "Weight Gain Plan",
-      description:
-        "Fuel your workouts and speed up recovery with high-quality whey protein isolate.",
-      price: "2000",
-      planType: "diet",
-      goal: "weight gain",
-    },
-  ],
-  membership: [
-    {
-      id: "1",
-      image: require("../assets/images/meal_1.jpg"),
-      title: "Monthly Gainer",
-      description: "Membership plan for bulking with premium access.",
-      price: "5000",
-      planType: "diet",
-      goal: "weight gain",
-    },
-    {
-      id: "2",
-      image: require("../assets/images/meal_1.jpg"),
-      title: "Lean Program",
-      description: "Sculpt and tone your body with expert guidance.",
-      price: "4500",
-      planType: "workout",
-      goal: "weight loss",
-    },
-    {
-      id: "3",
-      image: require("../assets/images/meal_1.jpg"),
-      title: "Fit Balance Pack",
-      description: "Steady energy, healthy body with balanced nutrition.",
-      price: "4000",
-      planType: "diet",
-      goal: "balanced",
-    },
-  ],
-}
+const FitnessProgramsScreen = ({ navigation }: any) => {
+  const [selectedTab, setSelectedTab] = useState<PlanType>('ONE_TIME');
+  const [selectedType, setSelectedType] = useState<CategoryType>('DIET');
+  const [selectedGoal, setSelectedGoal] = useState<GoalType>('MUSCLE_BUILDING');
+  const [plans, setPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addingId, setAddingId] = useState<string | number | null>(null);
 
-const FitnessProgramsScreen = () => {
-  const [selectedTab, setSelectedTab] = useState<TabType>("oneTime")
-  const [selectedType, setSelectedType] = useState<PlanType>("diet")
-  const [selectedGoal, setSelectedGoal] = useState<GoalType>("weight gain")
+  const goalOptions = useMemo(
+    () => [
+      { label: 'gain', value: 'WEIGHT_GAIN' },
+      { label: 'loss', value: 'WEIGHT_LOSS' },
+      { label: 'muscle', value: 'MUSCLE_BUILDING' },
+    ],
+    [],
+  );
 
-  const filteredPlans = allPlans[selectedTab].filter(
-    (p) => p.planType === selectedType && p.goal === selectedGoal
-  )
+  const fetchPlans = async () => {
+    setLoading(true);
+    try {
+      const [typeResponse, goalResponse] = await Promise.all([
+        getPlansByType(selectedTab),
+        getPlansByGoal(selectedGoal),
+      ]);
+      const typePlans = unwrapPlans(typeResponse);
+      const goalPlans = unwrapPlans(goalResponse);
+      const goalIds = new Set(goalPlans.map((plan: any) => String(plan.guid || plan.id)));
+      const list = typePlans.filter((plan: any) => {
+        const categoryMatches =
+          !plan.plan_category ||
+          String(plan.plan_category).toUpperCase() === selectedType;
+        const goalMatches =
+          !goalIds.size || goalIds.has(String(plan.guid || plan.id));
+        return categoryMatches && goalMatches;
+      });
+      setPlans(list);
+    } catch (error) {
+      showErrorToast('Could not load fitness programs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTab, selectedType, selectedGoal]);
+
+  const handleAddPlan = async (plan: any) => {
+    const planId = plan.guid || plan.id;
+    setAddingId(planId);
+    try {
+      await addPlanToCartApi(planId);
+      showSuccessToast('Plan added to cart');
+    } catch (error: any) {
+      showErrorToast(error.response?.data?.message || 'Could not add plan');
+    } finally {
+      setAddingId(null);
+    }
+  };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: verticalScale(80) }}
-    >
-     <NavBar/>
+    <View style={styles.container}>
+      <NavBar />
 
       <View style={styles.content}>
         <Text style={styles.categoriesTitle}>Categories</Text>
 
         <View style={styles.tabContainer}>
           <TouchableOpacity
-            onPress={() => setSelectedTab("oneTime")}
+            onPress={() => setSelectedTab('ONE_TIME')}
             style={[
               styles.tabButton,
-              selectedTab === "oneTime" && styles.tabButtonActive,
+              selectedTab === 'ONE_TIME' && styles.tabButtonActive,
             ]}
           >
             <Text
               style={[
                 styles.tabText,
-                selectedTab === "oneTime" && styles.tabTextActive,
+                selectedTab === 'ONE_TIME' && styles.tabTextActive,
               ]}
             >
               One-Time Plans
@@ -166,16 +111,16 @@ const FitnessProgramsScreen = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => setSelectedTab("membership")}
+            onPress={() => setSelectedTab('MEMBERSHIP')}
             style={[
               styles.tabButton,
-              selectedTab === "membership" && styles.tabButtonActive,
+              selectedTab === 'MEMBERSHIP' && styles.tabButtonActive,
             ]}
           >
             <Text
               style={[
                 styles.tabText,
-                selectedTab === "membership" && styles.tabTextActive,
+                selectedTab === 'MEMBERSHIP' && styles.tabTextActive,
               ]}
             >
               Membership Plans
@@ -184,137 +129,138 @@ const FitnessProgramsScreen = () => {
         </View>
 
         <View style={styles.filterRow}>
-          <TouchableOpacity
-            onPress={() => setSelectedType("diet")}
-            style={[
-              styles.filterButton,
-              selectedType === "diet" && styles.filterButtonActive,
-            ]}
-          >
-            <Text
+          {(['DIET', 'WORKOUT'] as CategoryType[]).map(type => (
+            <TouchableOpacity
+              key={type}
+              onPress={() => setSelectedType(type)}
               style={[
-                styles.filterText,
-                selectedType === "diet" && styles.filterTextActive,
+                styles.filterButton,
+                selectedType === type && styles.filterButtonActive,
               ]}
             >
-              Diet Plans
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedType("workout")}
-            style={[
-              styles.filterButton,
-              selectedType === "workout" && styles.filterButtonActive,
-            ]}
-          >
-            <Text  style={[
-                styles.filterText,
-                selectedType === "workout" && styles.filterTextActive,
-              ]}>Workout Plans</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.goalRow}>
-          {["weight gain", "weight loss", "balanced"].map((goal) => (
-            <TouchableOpacity
-              key={goal}
-              style={styles.goalOption}
-              onPress={() => setSelectedGoal(goal as GoalType)}
-            >
-              <View
+              <Text
                 style={[
-                  styles.radioOuter,
-                  selectedGoal === goal && styles.radioOuterActive,
+                  styles.filterText,
+                  selectedType === type && styles.filterTextActive,
                 ]}
               >
-                {selectedGoal === goal && <View style={styles.radioInner} />}
-              </View>
-              <Text style={styles.goalText}>
-                {goal.replace("weight ", "")}
+                {type === 'DIET' ? 'Diet Plans' : 'Workout Plans'}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
+        <View style={styles.goalRow}>
+          {goalOptions.map(goal => (
+            <TouchableOpacity
+              key={goal.value}
+              style={styles.goalOption}
+              onPress={() => setSelectedGoal(goal.value as GoalType)}
+            >
+              <View
+                style={[
+                  styles.radioOuter,
+                  selectedGoal === goal.value && styles.radioOuterActive,
+                ]}
+              >
+                {selectedGoal === goal.value && <View style={styles.radioInner} />}
+              </View>
+              <Text style={styles.goalText}>{goal.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <Text style={styles.sectionTitle}>
-          {selectedTab === "oneTime" ? "One - Time Plans" : "Membership Plans"} (
-          {filteredPlans.length}/{allPlans[selectedTab].length})
+          {selectedTab === 'ONE_TIME' ? 'One-Time Plans' : 'Membership Plans'} (
+          {plans.length})
         </Text>
 
-        <View style={styles.grid}>
-          {filteredPlans.map((plan) => (
-            <View key={plan.id} style={styles.card}>
-              <Image source={plan.image} style={styles.cardImage} />
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{plan.title}</Text>
-                <Text numberOfLines={3} style={styles.cardDesc}>{plan.description}</Text>
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#ADFF2F" />
+          </View>
+        ) : (
+          <FlatList
+            data={plans}
+            keyExtractor={item => String(item.guid || item.id)}
+            numColumns={2}
+            columnWrapperStyle={styles.grid}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No plans found.</Text>
+            }
+            renderItem={({ item }) => {
+              const planId = item.guid || item.id;
+              return (
+                <TouchableOpacity
+                  style={styles.card}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    navigation.navigate('fitnessProgramDetails', {
+                      program: item,
+                    })
+                  }
+                >
+                  <RemoteImage sourceUri={item.image_url} style={styles.cardImage} />
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text numberOfLines={3} style={styles.cardDesc}>
+                      {item.short_description || item.description}
+                    </Text>
 
-                <View style={styles.cardBottom}>
-                  <Text style={styles.priceText}>Rs. {plan.price}</Text>
-                   <Image
-                            source={require("../assets/images/green_cart.png")}
+                    <View style={styles.cardBottom}>
+                      <Text style={styles.priceText}>
+                        {item.currency || 'Rs.'} {item.current_price || item.price}
+                      </Text>
+                      <TouchableOpacity onPress={() => handleAddPlan(item)}>
+                        {addingId === planId ? (
+                          <ActivityIndicator size="small" color="#ADE406" />
+                        ) : (
+                          <Image
+                            source={require('../assets/images/green_cart.png')}
                             style={styles.cartIcon}
                             resizeMode="contain"
                           />
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: verticalScale(90) }}
+          />
+        )}
       </View>
-    </ScrollView>
-  )
-}
+    </View>
+  );
+};
 
-export default FitnessProgramsScreen
+export default FitnessProgramsScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
-    paddingTop:verticalScale(10)
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: scale(20),
-    borderBottomWidth: 1,
-    borderBottomColor: "#222",
-  },
-  iconText: {
-    fontSize: moderateScale(20),
-    color: "#fff",
-  },
-   cartIcon: {
-    width: moderateScale(22),
-    height: moderateScale(22),
-  },
-  logoText: {
-    fontSize: moderateScale(18),
-    color: "#ADFF2F",
-    fontWeight: "bold",
-  },
-  headerIcons: {
-    flexDirection: "row",
-    gap: scale(16),
+    backgroundColor: '#000',
+    paddingTop: 0,
   },
   content: {
     padding: scale(20),
-    paddingTop:scale(0)
+    paddingTop: scale(0),
+    flex: 1,
   },
   categoriesTitle: {
     fontSize: moderateScale(22),
-    color: "#fff",
+    color: '#fff',
     marginBottom: verticalScale(12),
-    fontWeight: "600",
+    fontWeight: '600',
   },
   tabContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: "#222",
+    borderBottomColor: '#222',
     marginBottom: verticalScale(16),
   },
   tabButton: {
@@ -323,150 +269,128 @@ const styles = StyleSheet.create({
   },
   tabButtonActive: {
     borderBottomWidth: 2,
-    borderBottomColor: "#ADFF2F",
+    borderBottomColor: '#ADFF2F',
   },
   tabText: {
     fontSize: moderateScale(13),
-    color: "#666",
-    fontWeight: "500",
+    color: '#666',
+    fontWeight: '500',
   },
   tabTextActive: {
-    color: "#ADFF2F",
+    color: '#ADFF2F',
   },
   filterRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: scale(12),
     marginBottom: verticalScale(16),
   },
   filterButton: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: '#1a1a1a',
     paddingVertical: verticalScale(6),
     paddingHorizontal: scale(20),
     borderRadius: moderateScale(20),
   },
   filterButtonActive: {
-    backgroundColor: "#ADFF2F",
-  },
-  filterButtonOutline: {
-    paddingVertical: verticalScale(8),
-    paddingHorizontal: scale(20),
-    borderRadius: moderateScale(20),
-    borderWidth: 1,
-    borderColor: "#444",
-  },
-  filterButtonOutlineActive: {
-    borderColor: "#ADFF2F",
+    backgroundColor: '#ADFF2F',
   },
   filterText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: moderateScale(12),
-    fontWeight: "600",
+    fontWeight: '600',
   },
   filterTextActive: {
-    color: "#000",
+    color: '#000',
   },
   goalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: verticalScale(16),
   },
   goalOption: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   radioOuter: {
     width: scale(16),
     height: scale(16),
     borderRadius: scale(8),
     borderWidth: 1,
-    borderColor: "#999",
+    borderColor: '#999',
     marginRight: scale(6),
   },
   radioOuterActive: {
-    borderColor: "#ADFF2F",
+    borderColor: '#ADFF2F',
   },
   radioInner: {
     width: scale(8),
     height: scale(8),
     borderRadius: scale(4),
-    backgroundColor: "#ADFF2F",
-    alignSelf: "center",
+    backgroundColor: '#ADFF2F',
+    alignSelf: 'center',
     marginTop: scale(3),
   },
   goalText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: moderateScale(12),
-    textTransform: "capitalize",
+    textTransform: 'capitalize',
   },
   sectionTitle: {
-    color: "#fff",
+    color: '#fff',
     fontSize: moderateScale(14),
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: verticalScale(10),
   },
   grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
   },
   card: {
-    backgroundColor: "#111",
+    backgroundColor: '#111',
     borderRadius: moderateScale(10),
     marginBottom: verticalScale(14),
-    width: "47%",
-    overflow: "hidden",
+    width: '47%',
+    overflow: 'hidden',
   },
   cardImage: {
-    width: "100%",
+    width: '100%',
     height: verticalScale(110),
-    borderTopLeftRadius: moderateScale(10),
-    borderTopRightRadius: moderateScale(10),
   },
   cardContent: {
     padding: scale(10),
   },
   cardTitle: {
-    color: "#fff",
+    color: '#fff',
     fontSize: moderateScale(12),
-    fontWeight: "600",
-  },
-  cardSubtitle: {
-    color: "#999",
-    fontSize: moderateScale(10),
+    fontWeight: '600',
   },
   cardDesc: {
-    color: "#999",
+    color: '#999',
     fontSize: moderateScale(10),
     lineHeight: verticalScale(12),
     marginTop: verticalScale(4),
     marginBottom: verticalScale(8),
   },
-  cardPrice: {
-    color: "#ADFF2F",
-    fontSize: moderateScale(11),
-    fontWeight: "600",
-  },
   cardBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   priceText: {
-    color: "#ADFF2F",
+    color: '#ADFF2F',
     fontSize: moderateScale(14),
-    fontWeight:'700'
+    fontWeight: '700',
   },
-  addButton: {
-    width: scale(28),
-    height: scale(28),
-    borderRadius: scale(14),
-    backgroundColor: "#ADFF2F",
-    alignItems: "center",
-    justifyContent: "center",
+  cartIcon: {
+    width: moderateScale(22),
+    height: moderateScale(22),
   },
-  addText: {
-    color: "#000",
-    fontSize: moderateScale(18),
-    fontWeight: "bold",
+  loadingBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-})
+  emptyText: {
+    color: '#999',
+    textAlign: 'center',
+    marginTop: verticalScale(60),
+  },
+});

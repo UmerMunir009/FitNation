@@ -73,3 +73,13 @@ export const addPlanToCartApi = async (planId: string | number) => {
     throw error;
   }
 };
+
+export const removeCartItemApi = async (itemId: number) => {
+  try {
+    const response = await api.delete(`/api/v1/cart/remove/${itemId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error removing item from cart:', error);
+    throw error;
+  }
+};

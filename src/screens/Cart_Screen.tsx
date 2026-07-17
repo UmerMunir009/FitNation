@@ -19,7 +19,8 @@ import {
   getCartApi, 
   clearCartApi, 
   getCartSummaryApi, 
-  updateCartItemApi 
+  updateCartItemApi,
+  removeCartItemApi 
 } from '../api/cart';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 
@@ -42,6 +43,7 @@ const CartScreen = () => {
   const [clearModalVisible, setClearModalVisible] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null); 
 
   
   const fetchCartData = async (showLoading = true) => {
@@ -76,6 +78,7 @@ const CartScreen = () => {
   const handleUpdateQuantity = async (itemId: number, currentQty: number, delta: number) => {
     const newQty = currentQty + delta;
     if (newQty < 1) return;
+    if (deletingId === itemId) return; 
 
     setUpdatingId(itemId);
     try {
@@ -85,6 +88,22 @@ const CartScreen = () => {
       showErrorToast("Update failed");
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  
+  const handleRemoveItem = async (itemId: number) => {
+    if (updatingId === itemId) return; 
+
+    setDeletingId(itemId); 
+    try {
+      await removeCartItemApi(itemId);
+      showSuccessToast("Item removed from cart");
+      await fetchCartData(false); 
+    } catch (err) {
+      showErrorToast("Could not remove item");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -216,12 +235,13 @@ const CartScreen = () => {
                       <TouchableOpacity 
                         onPress={() => handleUpdateQuantity(item.id, item.quantity, -1)}
                         style={styles.qtyBtn}
-                        disabled={updatingId === item.id || item.quantity <= 1}
+                        disabled={updatingId === item.id || deletingId === item.id || item.quantity <= 1}
                       >
                         <Minus size={16} color={item.quantity <= 1 ? "#444" : "#ADE406"} />
                       </TouchableOpacity>
 
                       <View style={styles.qtyValueBox}>
+                        {/* Checked specifically against updatingId so the deletion spinner won't show here */}
                         {updatingId === item.id ? (
                           <ActivityIndicator size="small" color="#ADE406" />
                         ) : (
@@ -232,15 +252,24 @@ const CartScreen = () => {
                       <TouchableOpacity 
                         onPress={() => handleUpdateQuantity(item.id, item.quantity, 1)}
                         style={styles.qtyBtn}
-                        disabled={updatingId === item.id}
+                        disabled={updatingId === item.id || deletingId === item.id}
                       >
                         <Plus size={16} color="#ADE406" />
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  <TouchableOpacity style={styles.trashBtn}>
-                    <Trash2 size={20} color="#666" />
+                  <TouchableOpacity 
+                    style={styles.trashBtn}
+                    onPress={() => handleRemoveItem(item.id)}
+                    disabled={updatingId === item.id || deletingId === item.id}
+                  >
+                    {/* Checked specifically against deletingId here */}
+                    {deletingId === item.id ? (
+                      <ActivityIndicator size="small" color="#FF4444" />
+                    ) : (
+                      <Trash2 size={20} color="#666" />
+                    )}
                   </TouchableOpacity>
                 </View>
                 <View style={styles.underline} />
